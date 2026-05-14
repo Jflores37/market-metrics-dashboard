@@ -1,40 +1,39 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, TrendingUp } from 'lucide-react';
+import { AlertTriangle, TrendingUp, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const STAGE_TONE = {
-  1: { text: 'text-zinc-400',   bg: 'bg-zinc-600',     bar: 'bg-zinc-600' },
-  2: { text: 'text-emerald-400', bg: 'bg-emerald-500', bar: 'bg-emerald-500' },
-  3: { text: 'text-amber-400',   bg: 'bg-amber-500',   bar: 'bg-amber-500' },
-  4: { text: 'text-red-400',     bg: 'bg-red-500',     bar: 'bg-red-500' },
+const STAGE_STYLES = {
+  1: { color: 'var(--text-secondary)', bg: '#475569',          label: 'Base' },
+  2: { color: 'var(--bull)',           bg: 'var(--bull)',      label: 'Uptrend' },
+  3: { color: 'var(--warn)',           bg: 'var(--warn)',      label: 'Topping' },
+  4: { color: 'var(--bear)',           bg: 'var(--bear)',      label: 'Downtrend' },
 };
 
-function fmtPct(v, sign = true) {
+function fmtPct(v) {
   if (v == null) return '—';
   const n = Number(v);
-  const s = sign && n > 0 ? '+' : '';
+  const s = n > 0 ? '+' : '';
   return `${s}${n.toFixed(1)}%`;
 }
 
 function changeColor(v) {
-  if (v == null) return 'text-zinc-600';
+  if (v == null) return 'var(--text-disabled)';
   const n = Number(v);
-  if (n > 0) return 'text-emerald-400';
-  if (n < 0) return 'text-red-400';
-  return 'text-zinc-500';
+  if (n > 0) return 'var(--bull)';
+  if (n < 0) return 'var(--bear)';
+  return 'var(--text-secondary)';
 }
+
+function tvUrl(t) { return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(t)}`; }
 
 function LoadingSkeleton() {
   return (
-    <div className="animate-pulse">
-      <div className="px-3 py-4 border-b border-zinc-900">
-        <div className="h-3 bg-zinc-900 rounded w-2/3"></div>
+    <div className="space-y-3">
+      <div className="pulse-card p-5">
+        <div className="pulse-shimmer h-2 w-full mb-4" />
+        <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="pulse-shimmer h-6" />)}</div>
       </div>
-      {[...Array(6)].map((_, i) => (
-        <div key={i} className="px-3 py-2 border-b border-zinc-900">
-          <div className="h-3 bg-zinc-900 rounded w-1/2"></div>
-        </div>
-      ))}
+      <div className="pulse-card p-5"><div className="space-y-2">{[...Array(8)].map((_, i) => <div key={i} className="pulse-shimmer h-5" />)}</div></div>
     </div>
   );
 }
@@ -64,11 +63,11 @@ export default function StageAnalysis() {
 
   if (error) {
     return (
-      <div className="px-3 py-4 flex items-start gap-2 text-red-400 text-[11px] tracking-wider">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <div className="pulse-card p-5 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--bear)' }} />
         <div>
-          <div className="font-bold mb-1">FAILED TO LOAD STAGES</div>
-          <div className="text-zinc-500">{error}</div>
+          <div className="font-semibold mb-1" style={{ color: 'var(--bear)' }}>Failed to load stages</div>
+          <div className="text-sm text-[var(--text-secondary)]">{error}</div>
         </div>
       </div>
     );
@@ -76,71 +75,90 @@ export default function StageAnalysis() {
 
   if (stages === null || leaders === null) return <LoadingSkeleton />;
 
-  const total = stages.reduce((sum, s) => sum + Number(s.count), 0);
+  const total = stages.reduce((s, x) => s + Number(x.count), 0);
 
   return (
-    <div>
-      {/* Stacked distribution bar */}
-      <div className="px-3 pt-3 pb-2 border-b border-zinc-800">
-        <div className="flex h-2 rounded-sm overflow-hidden bg-zinc-900 mb-2">
+    <div className="space-y-4">
+      {/* Distribution card */}
+      <div className="pulse-card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[10px] tracking-wider uppercase font-semibold text-[var(--text-tertiary)]">
+            $1B+ Universe
+          </div>
+          <div className="pulse-number text-xs text-[var(--text-secondary)]">
+            {total.toLocaleString('en-US')} stocks
+          </div>
+        </div>
+
+        {/* Stacked bar */}
+        <div className="flex h-2.5 rounded-full overflow-hidden mb-4" style={{ background: 'var(--bg-elevated)' }}>
           {stages.map((s) => {
             const w = total ? (Number(s.count) / total) * 100 : 0;
-            const tone = STAGE_TONE[s.stage]?.bar ?? 'bg-zinc-700';
-            return <div key={s.stage} className={tone} style={{ width: `${w}%` }} />;
+            const tone = STAGE_STYLES[s.stage];
+            return <div key={s.stage} style={{ width: `${w}%`, background: tone.bg }} />;
           })}
         </div>
-        <div className="flex justify-between text-[9px] tracking-wider text-zinc-600">
-          <span>$1B+ UNIVERSE</span>
-          <span className="tabular-nums">{total.toLocaleString('en-US')} STOCKS</span>
+
+        {/* Rows */}
+        <div className="space-y-2">
+          {stages.map((s) => {
+            const tone = STAGE_STYLES[s.stage];
+            return (
+              <div key={s.stage} className="flex items-center justify-between py-1.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2 h-2 rounded-full" style={{ background: tone.bg }} />
+                  <span className="text-sm font-medium" style={{ color: tone.color }}>
+                    Stage {s.stage} · {tone.label}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 pulse-number">
+                  <span className="text-sm text-[var(--text-secondary)] tabular-nums">
+                    {Number(s.count).toLocaleString('en-US')}
+                  </span>
+                  <span className="text-base font-semibold w-14 text-right tabular-nums" style={{ color: tone.color }}>
+                    {Number(s.pct).toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Stage rows */}
-      {stages.map((s) => {
-        const tone = STAGE_TONE[s.stage] ?? STAGE_TONE[1];
-        return (
-          <div key={s.stage} className="px-3 py-1.5 border-b border-zinc-900 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className={`inline-block w-2 h-2 rounded-sm ${tone.bg}`}></span>
-              <span className={`text-[11px] tracking-wide ${tone.text}`}>
-                Stage {s.stage} — {s.stage_label}
-              </span>
-            </div>
-            <div className="flex items-center gap-3 tabular-nums">
-              <span className="text-[11px] text-zinc-500">{Number(s.count).toLocaleString('en-US')}</span>
-              <span className={`text-[12px] font-semibold w-12 text-right ${tone.text}`}>
-                {Number(s.pct).toFixed(1)}%
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
       {/* Stage 2 leaders */}
-      <div className="px-3 py-1.5 border-b border-zinc-800 bg-zinc-900/40 flex items-center gap-2">
-        <TrendingUp className="w-3 h-3 text-emerald-400" strokeWidth={2.5} />
-        <span className="text-[9px] font-bold tracking-[0.3em] text-zinc-400">
-          TOP STAGE 2 LEADERS · QTR%
-        </span>
-      </div>
-      <div className="max-h-72 overflow-y-auto">
-        {leaders.slice(0, 12).map((l) => (
-          <div key={l.ticker} className="px-3 py-1.5 border-b border-zinc-900 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[12px] font-bold tracking-wide text-zinc-100 w-14">{l.ticker}</span>
-              <span className="text-[10px] text-zinc-600 truncate">{l.sector}</span>
+      <div className="pulse-card">
+        <div className="px-5 py-3 border-b border-[var(--border-faint)] flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" style={{ color: 'var(--bull)' }} strokeWidth={2.5} />
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Top Stage 2 Leaders</span>
+          <span className="text-[11px] text-[var(--text-tertiary)] ml-auto">Ranked by quarter</span>
+        </div>
+        <div className="max-h-80 overflow-y-auto divide-y divide-[var(--border-faint)]">
+          {leaders.slice(0, 15).map((l) => (
+            <div key={l.ticker} className="px-5 py-2.5 flex items-center justify-between gap-3 hover:bg-[var(--bg-elevated)] transition-colors">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <a
+                  href={tvUrl(l.ticker)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="pulse-number text-sm font-semibold w-16 inline-flex items-center gap-1 transition-colors"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  {l.ticker}
+                  <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                </a>
+                <span className="text-xs text-[var(--text-tertiary)] truncate">{l.sector}</span>
+              </div>
+              <div className="flex items-center gap-3 pulse-number text-sm">
+                <span className="w-16 text-right tabular-nums" style={{ color: changeColor(l.perf_quarter) }}>{fmtPct(l.perf_quarter)}</span>
+                <span className="w-16 text-right tabular-nums" style={{ color: changeColor(l.perf_year) }}>{fmtPct(l.perf_year)}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 tabular-nums text-[11px]">
-              <span className={`w-14 text-right ${changeColor(l.perf_quarter)}`}>{fmtPct(l.perf_quarter)}</span>
-              <span className={`w-14 text-right ${changeColor(l.perf_year)}`}>{fmtPct(l.perf_year)}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="px-3 py-2 border-t border-zinc-800 text-[9px] tracking-[0.2em] text-zinc-600 flex justify-between">
-        <span>WEINSTEIN STAGES · DERIVED FROM SMA20/50/200</span>
-        <span>QTR · YR</span>
+          ))}
+        </div>
+        <div className="px-5 py-2.5 text-[11px] text-[var(--text-tertiary)] border-t border-[var(--border-faint)] flex justify-between">
+          <span>Weinstein stages · derived from SMA20/50/200</span>
+          <span>QTR · YR</span>
+        </div>
       </div>
     </div>
   );

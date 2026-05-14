@@ -1,37 +1,31 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowRight, ArrowUp, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 const CATEGORY_ORDER = ['inflation', 'employment', 'rates', 'commodities'];
-
 const CATEGORY_LABEL = {
-  inflation: 'INFLATION',
-  employment: 'EMPLOYMENT',
-  rates: 'RATES',
-  commodities: 'COMMODITIES',
+  inflation: 'Inflation',
+  employment: 'Employment',
+  rates: 'Rates',
+  commodities: 'Commodities',
 };
 
-function formatMonthYear(isoDate) {
-  if (!isoDate) return '';
-  const d = new Date(isoDate + 'T00:00:00Z');
-  const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-  const yy = String(d.getUTCFullYear()).slice(2);
-  return `${month} '${yy}`;
+function formatMonthYear(d) {
+  if (!d) return '';
+  const date = new Date(d + 'T00:00:00Z');
+  return date.toLocaleString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 }
 
-function formatDayMonthYear(isoDate) {
-  if (!isoDate) return '';
-  const d = new Date(isoDate + 'T00:00:00Z');
-  const month = d.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-  const day = d.getUTCDate();
-  const yy = String(d.getUTCFullYear()).slice(2);
-  return `${month} ${day} '${yy}`;
+function formatDayMonthYear(d) {
+  if (!d) return '';
+  const date = new Date(d + 'T00:00:00Z');
+  return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
 }
 
-function fmtPct(n, sign = true) {
+function fmtPct(n, signed = true) {
   if (n == null) return '—';
   const v = Number(n);
-  const s = sign && v > 0 ? '+' : '';
+  const s = signed && v > 0 ? '+' : '';
   return `${s}${v.toFixed(2)}%`;
 }
 
@@ -47,112 +41,92 @@ function fmtMomDelta(n) {
   if (n == null) return '—';
   const v = Number(n);
   const sign = v > 0 ? '+' : '';
-  // PAYEMS is in thousands; show "+115K"
   return `${sign}${Math.round(v).toLocaleString('en-US')}K`;
 }
 
-function DirectionIcon({ direction }) {
-  if (direction === 'up') return <ArrowUp className="w-3 h-3" strokeWidth={2.5} />;
-  if (direction === 'down') return <ArrowDown className="w-3 h-3" strokeWidth={2.5} />;
-  return <ArrowRight className="w-3 h-3" strokeWidth={2.5} />;
+function directionStyle(d) {
+  if (d === 'up') return { color: 'var(--bull)', icon: ArrowUp };
+  if (d === 'down') return { color: 'var(--bear)', icon: ArrowDown };
+  return { color: 'var(--text-tertiary)', icon: ArrowRight };
 }
 
-function directionTone(direction) {
-  if (direction === 'up') return 'text-emerald-400';
-  if (direction === 'down') return 'text-red-400';
-  return 'text-amber-400';
-}
+function KpiCard({ row }) {
+  const dir = directionStyle(row.direction);
+  const Icon = dir.icon;
 
-function HeadlineValue({ row }) {
-  // The "primary" number per series:
-  //   yoy_pct transform → show yoy_pct + ' YoY'
-  //   mom_delta transform → show mom_delta
-  //   level transform → show the level
+  let primary, secondary;
   if (row.transform === 'yoy_pct') {
-    return (
-      <span className="text-cyan-400 tabular-nums font-semibold">
-        {fmtPct(row.yoy_pct)} <span className="text-zinc-600 font-normal text-[10px] tracking-wider">YoY</span>
-      </span>
-    );
+    primary = fmtPct(row.yoy_pct);
+    secondary = `${fmtLevel(row.latest_value, row.units)} · ${row.frequency === 'daily' ? formatDayMonthYear(row.latest_date) : formatMonthYear(row.latest_date)}`;
+  } else if (row.transform === 'mom_delta') {
+    primary = fmtMomDelta(row.mom_delta);
+    secondary = `Total ${Math.round(Number(row.latest_value) / 1000)}M · ${formatMonthYear(row.latest_date)}`;
+  } else {
+    primary = fmtLevel(row.latest_value, row.units);
+    secondary = row.frequency === 'daily' ? formatDayMonthYear(row.latest_date) : formatMonthYear(row.latest_date);
   }
-  if (row.transform === 'mom_delta') {
-    return (
-      <span className="text-cyan-400 tabular-nums font-semibold">
-        {fmtMomDelta(row.mom_delta)} <span className="text-zinc-600 font-normal text-[10px] tracking-wider">MoM</span>
-      </span>
-    );
-  }
-  return (
-    <span className="text-cyan-400 tabular-nums font-semibold">
-      {fmtLevel(row.latest_value, row.units)}
-    </span>
-  );
-}
 
-function SubLine({ row }) {
-  // Smaller line under the headline: shows the raw level for yoy_pct/mom_delta series,
-  // and just the date for level series.
-  const date =
-    row.frequency === 'daily' ? formatDayMonthYear(row.latest_date) : formatMonthYear(row.latest_date);
-  if (row.transform === 'yoy_pct') {
-    return (
-      <span className="text-zinc-600 tabular-nums">
-        {fmtLevel(row.latest_value, row.units)} <span className="text-zinc-700">·</span> {date}
-      </span>
-    );
-  }
-  if (row.transform === 'mom_delta') {
-    return (
-      <span className="text-zinc-600 tabular-nums">
-        Total {Math.round(Number(row.latest_value) / 1000)}M <span className="text-zinc-700">·</span> {date}
-      </span>
-    );
-  }
-  return <span className="text-zinc-600 tabular-nums">{date}</span>;
-}
+  const primaryColor =
+    row.transform === 'yoy_pct' || row.transform === 'mom_delta' ? dir.color : 'var(--text-primary)';
 
-function Row({ row }) {
-  const tone = directionTone(row.direction);
   return (
-    <div className="px-3 py-2 border-b border-zinc-900 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] text-zinc-100 tracking-wide">{row.display_name}</span>
-        <div className="flex items-center gap-1.5">
-          <HeadlineValue row={row} />
-          <span className={tone}>
-            <DirectionIcon direction={row.direction} />
-          </span>
+    <div className="pulse-card p-4 hover:border-[var(--border-default)] transition-colors">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <div className="text-sm font-semibold text-[var(--text-primary)]">{row.display_name}</div>
+          <div className="text-[10px] tracking-wider text-[var(--text-tertiary)] uppercase mt-0.5">
+            {row.series_id}
+          </div>
         </div>
+        <Icon className="w-4 h-4" strokeWidth={2.5} style={{ color: dir.color }} />
       </div>
-      <div className="flex items-center justify-between text-[10px] tracking-wider mt-0.5">
-        <span className="text-zinc-700 uppercase">{row.series_id}</span>
-        <SubLine row={row} />
+      <div className="flex items-baseline gap-2">
+        <span className="pulse-number text-2xl font-bold" style={{ color: primaryColor }}>
+          {primary}
+        </span>
+        {row.transform === 'yoy_pct' && (
+          <span className="text-[10px] tracking-wider uppercase text-[var(--text-tertiary)]">YoY</span>
+        )}
+        {row.transform === 'mom_delta' && (
+          <span className="text-[10px] tracking-wider uppercase text-[var(--text-tertiary)]">MoM</span>
+        )}
       </div>
+      <div className="text-xs text-[var(--text-tertiary)] mt-1.5">{secondary}</div>
     </div>
   );
 }
 
-function CategoryBlock({ label, rows }) {
+function CategorySection({ label, rows }) {
   if (!rows.length) return null;
   return (
-    <div className="mb-2 last:mb-0">
-      <div className="px-3 py-1.5 bg-zinc-900/40 border-b border-zinc-800 text-[9px] font-bold tracking-[0.3em] text-zinc-500">
-        {label}
+    <section className="space-y-3">
+      <div className="flex items-center gap-3">
+        <h2 className="text-base font-semibold text-[var(--text-primary)]">{label}</h2>
+        <div className="flex-1 h-px bg-[var(--border-faint)]" />
+        <span className="text-[10px] tracking-wider uppercase text-[var(--text-tertiary)]">
+          {rows.length} {rows.length === 1 ? 'series' : 'series'}
+        </span>
       </div>
-      {rows.map((r) => (
-        <Row key={r.series_id} row={r} />
-      ))}
-    </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {rows.map((r) => (
+          <KpiCard key={r.series_id} row={r} />
+        ))}
+      </div>
+    </section>
   );
 }
 
 function LoadingSkeleton() {
   return (
-    <div className="animate-pulse">
-      {[...Array(8)].map((_, i) => (
-        <div key={i} className="px-3 py-2 border-b border-zinc-900">
-          <div className="h-3 bg-zinc-900 rounded w-1/2 mb-1.5"></div>
-          <div className="h-2 bg-zinc-900 rounded w-1/3"></div>
+    <div className="space-y-6">
+      {[...Array(2)].map((_, i) => (
+        <div key={i} className="space-y-3">
+          <div className="pulse-shimmer h-5 w-32" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {[...Array(3)].map((_, j) => (
+              <div key={j} className="pulse-shimmer h-24" />
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -174,18 +148,16 @@ export default function MacroMonitor() {
       if (error) setError(error.message);
       else setRows(data ?? []);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   if (error) {
     return (
-      <div className="px-3 py-4 flex items-start gap-2 text-red-400 text-[11px] tracking-wider">
-        <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <div className="pulse-card p-5 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--bear)' }} />
         <div>
-          <div className="font-bold mb-1">FAILED TO LOAD MACRO DATA</div>
-          <div className="text-zinc-500">{error}</div>
+          <div className="font-semibold mb-1" style={{ color: 'var(--bear)' }}>Failed to load macro data</div>
+          <div className="text-sm text-[var(--text-secondary)]">{error}</div>
         </div>
       </div>
     );
@@ -198,21 +170,16 @@ export default function MacroMonitor() {
     rows: rows.filter((r) => r.category === cat),
   }));
 
-  // Derive freshest date for the widget footer
-  const freshest = rows
-    .map((r) => r.latest_date)
-    .filter(Boolean)
-    .sort()
-    .at(-1);
+  const freshest = rows.map((r) => r.latest_date).filter(Boolean).sort().at(-1);
 
   return (
-    <div>
+    <div className="space-y-6 pulse-stagger">
       {grouped.map((g) => (
-        <CategoryBlock key={g.label} label={g.label} rows={g.rows} />
+        <CategorySection key={g.label} label={g.label} rows={g.rows} />
       ))}
-      <div className="px-3 py-2 border-t border-zinc-800 text-[9px] tracking-[0.2em] text-zinc-600 flex justify-between">
-        <span>SOURCE · FRED</span>
-        <span>LAST OBSERVATION · {formatDayMonthYear(freshest)}</span>
+      <div className="pulse-card px-4 py-3 flex justify-between items-center text-xs text-[var(--text-tertiary)]">
+        <span>Source · FRED</span>
+        <span>Last observation · {formatDayMonthYear(freshest)}</span>
       </div>
     </div>
   );

@@ -1,34 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================================
+   PULSE — Modern dark fintech design system
+   ========================================================================= */
+
 :root {
+  --bg-base:     #0a0c14;
+  --bg-surface:  #11141d;
+  --bg-elevated: #181c27;
+  --bg-overlay:  #1f2330;
+
+  --border-faint:    #1c2030;
+  --border-default:  #262b3c;
+  --border-strong:   #3a4055;
+
+  --text-primary:   #e8eaf0;
+  --text-secondary: #a0a4b3;
+  --text-tertiary:  #6b7088;
+  --text-disabled:  #3f4458;
+
+  --bull:        #22c55e;
+  --bull-soft:   #16a34a;
+  --bull-bg:     rgba(34, 197, 94, 0.10);
+  --bear:        #ef4444;
+  --bear-soft:   #dc2626;
+  --bear-bg:     rgba(239, 68, 68, 0.10);
+  --warn:        #f59e0b;
+  --warn-bg:     rgba(245, 158, 11, 0.10);
+
+  --accent:      #14b8a6;
+  --accent-soft: #0d9488;
+  --accent-bg:   rgba(20, 184, 166, 0.08);
+  --accent-glow: rgba(20, 184, 166, 0.25);
+
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
   color-scheme: dark;
 }
 
-html, body, #root {
-  background-color: #09090b;
-  color: #f4f4f5;
-  min-height: 100%;
-  font-feature-settings: 'tnum' 1, 'cv11' 1;
+* {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle horizontal scanline texture for the terminal header */
-.scanlines {
-  background-image: repeating-linear-gradient(
-    0deg,
-    transparent 0px,
-    transparent 2px,
-    rgba(244, 244, 245, 0.025) 2px,
-    rgba(244, 244, 245, 0.025) 3px
-  );
+html, body, #root {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv11' 1, 'ss01' 1;
+  min-height: 100%;
 }
 
-/* No padding overshoot on iOS notch */
+body {
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+}
+
 @supports (padding: max(0px)) {
   body {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 5px;
+  border: 2px solid var(--bg-base);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+.pulse-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-faint);
+  border-radius: 10px;
+  transition: border-color var(--dur-base) var(--ease-out);
+}
+.pulse-card:hover { border-color: var(--border-default); }
+
+.pulse-card-hero {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, 0.05), transparent 60%),
+    var(--bg-surface);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+}
+
+.pulse-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pulse-number {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+@keyframes pulse-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.pulse-fade-in { animation: pulse-fade-in var(--dur-slow) var(--ease-out); }
+
+.pulse-stagger > * { animation: pulse-fade-in var(--dur-slow) var(--ease-out) backwards; }
+.pulse-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.pulse-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.pulse-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.pulse-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.pulse-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.pulse-stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.pulse-shimmer {
+  background: linear-gradient(
+    90deg, var(--bg-elevated) 0%, var(--border-default) 50%, var(--bg-elevated) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+
+@keyframes brand-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.92); }
+}
+.pulse-brand-dot { animation: brand-pulse 2.4s var(--ease-in-out) infinite; }
+
+.pulse-tab {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; letter-spacing: -0.005em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  width: 100%; text-align: left;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+.pulse-tab:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.pulse-tab[data-active="true"] {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: rgba(20, 184, 166, 0.20);
+}
+
+.pulse-tab-pill {
+  flex-shrink: 0;
+  padding: 8px 14px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-faint);
+  white-space: nowrap; cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.pulse-tab-pill:hover { color: var(--text-primary); border-color: var(--border-default); }
+.pulse-tab-pill[data-active="true"] {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-color: rgba(20, 184, 166, 0.30);
+}
+
+.pulse-grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  font-family: var(--font-mono);
+  font-weight: 700; font-size: 18px; letter-spacing: -0.02em;
+}
+
+.pulse-signal {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid;
 }
