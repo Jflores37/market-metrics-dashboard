@@ -1,6 +1,10 @@
 import { Radio } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import MacroMonitor from './components/MacroMonitor';
+import BreadthMetrics from './components/BreadthMetrics';
+import StageAnalysis from './components/StageAnalysis';
+import SectorPulse from './components/SectorPulse';
+import ShouldITrade from './components/ShouldITrade';
 
 function useNowUTC() {
   const [now, setNow] = useState(() => new Date());
@@ -16,14 +20,8 @@ function formatUTC(d) {
 }
 
 function marketSession(d) {
-  // NYSE regular hours: 09:30–16:00 ET => 14:30–21:00 UTC (during EDT)
-  //                                        13:30–20:00 UTC (during EST)
-  // Pre: 04:00 ET = 09:00 UTC (EDT) / 08:00 (EST)
-  // After-hours: ends 20:00 ET = 01:00 UTC (next day, EDT) / 00:00 UTC (EST)
-  // Simplification: use EDT mapping (correct ~8 months/yr), label edge cases generically.
-  const day = d.getUTCDay(); // 0 Sun ... 6 Sat
+  const day = d.getUTCDay();
   if (day === 0 || day === 6) return { label: 'CLOSED · WEEKEND', tone: 'text-zinc-600' };
-
   const minutes = d.getUTCHours() * 60 + d.getUTCMinutes();
   if (minutes >= 13 * 60 + 30 && minutes < 20 * 60)
     return { label: 'REGULAR HOURS', tone: 'text-emerald-400' };
@@ -44,7 +42,7 @@ function Header() {
           <Radio className="w-4 h-4 text-emerald-400 animate-pulse" strokeWidth={2.5} />
           <div className="leading-tight">
             <div className="text-[11px] font-bold tracking-[0.3em] text-zinc-100">MARKET METRICS</div>
-            <div className="text-[9px] tracking-[0.2em] text-zinc-600">v0.1 · PHASE 1</div>
+            <div className="text-[9px] tracking-[0.2em] text-zinc-600">v1.0 · PHASE 1 COMPLETE</div>
           </div>
         </div>
         <div className="text-right leading-tight">
@@ -56,9 +54,9 @@ function Header() {
   );
 }
 
-function WidgetCard({ title, subtitle, badge, badgeTone = 'text-emerald-400', children }) {
+function WidgetCard({ title, subtitle, badge, badgeTone = 'text-emerald-400', className = '', children }) {
   return (
-    <section className="border border-zinc-800 bg-zinc-950">
+    <section className={`border border-zinc-800 bg-zinc-950 ${className}`}>
       <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
         <div className="leading-tight">
           <div className="text-[10px] font-bold tracking-[0.3em] text-zinc-100">{title}</div>
@@ -73,31 +71,39 @@ function WidgetCard({ title, subtitle, badge, badgeTone = 'text-emerald-400', ch
   );
 }
 
-function PlaceholderCard({ title, subtitle }) {
-  return (
-    <WidgetCard title={title} subtitle={subtitle} badge="PHASE 1 · TODO" badgeTone="text-zinc-700">
-      <div className="px-3 py-8 text-center text-[10px] tracking-[0.2em] text-zinc-700">
-        BUILDING SOON
-      </div>
-    </WidgetCard>
-  );
-}
-
 export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Header />
       <main className="p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Hero card: the daily decision driver, full width on large screens */}
+        <WidgetCard
+          title="SHOULD I TRADE?"
+          subtitle="MARKET QUALITY SCORE"
+          badge="LIVE"
+          className="lg:col-span-2"
+        >
+          <ShouldITrade />
+        </WidgetCard>
+
+        <WidgetCard title="BREADTH METRICS" subtitle="SPY 500 + $1B+ UNIVERSES" badge="LIVE">
+          <BreadthMetrics />
+        </WidgetCard>
+
+        <WidgetCard title="SECTOR PULSE + RRG" subtitle="SPDR SECTORS VS VTI" badge="LIVE">
+          <SectorPulse />
+        </WidgetCard>
+
+        <WidgetCard title="STAGE ANALYSIS" subtitle="WEINSTEIN STAGES · $1B+" badge="LIVE">
+          <StageAnalysis />
+        </WidgetCard>
+
         <WidgetCard title="MACRO MONITOR" subtitle="FRED · TWICE DAILY" badge="LIVE">
           <MacroMonitor />
         </WidgetCard>
-        <PlaceholderCard title="SHOULD I TRADE?" subtitle="MARKET QUALITY SCORE" />
-        <PlaceholderCard title="BREADTH METRICS" subtitle="SPY500 + $1B UNIVERSES" />
-        <PlaceholderCard title="STAGE ANALYSIS" subtitle="STAGE 2 STOCKS" />
-        <PlaceholderCard title="SECTOR PULSE + RRG" subtitle="RELATIVE ROTATION" />
       </main>
       <footer className="px-4 py-4 text-[9px] tracking-[0.25em] text-zinc-700 text-center">
-        DATA PIPELINE · SUPABASE EDGE FUNCTIONS · PG_CRON
+        DATA PIPELINE · SUPABASE EDGE FUNCTIONS · PG_CRON · 3 SCHEDULED JOBS
       </footer>
     </div>
   );
