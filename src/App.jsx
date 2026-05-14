@@ -5,6 +5,7 @@ import BreadthMetrics from './components/BreadthMetrics';
 import StageAnalysis from './components/StageAnalysis';
 import SectorPulse from './components/SectorPulse';
 import ShouldITrade from './components/ShouldITrade';
+import SuperScanners from './components/SuperScanners';
 
 function useNowUTC() {
   const [now, setNow] = useState(() => new Date());
@@ -42,7 +43,7 @@ function Header() {
           <Radio className="w-4 h-4 text-emerald-400 animate-pulse" strokeWidth={2.5} />
           <div className="leading-tight">
             <div className="text-[11px] font-bold tracking-[0.3em] text-zinc-100">MARKET METRICS</div>
-            <div className="text-[9px] tracking-[0.2em] text-zinc-600">v1.0 · PHASE 1 COMPLETE</div>
+            <div className="text-[9px] tracking-[0.2em] text-zinc-600">v1.1 · PHASE 2 · SCANNERS</div>
           </div>
         </div>
         <div className="text-right leading-tight">
@@ -76,7 +77,6 @@ export default function App() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <Header />
       <main className="p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Hero card: the daily decision driver, full width on large screens */}
         <WidgetCard
           title="SHOULD I TRADE?"
           subtitle="MARKET QUALITY SCORE"
@@ -84,6 +84,15 @@ export default function App() {
           className="lg:col-span-2"
         >
           <ShouldITrade />
+        </WidgetCard>
+
+        <WidgetCard
+          title="SUPER SCANNERS"
+          subtitle="MINERVINI · QULLAMAGGIE · CANSLIM · LIQUID ETFs"
+          badge="LIVE"
+          className="lg:col-span-2"
+        >
+          <SuperScanners />
         </WidgetCard>
 
         <WidgetCard title="BREADTH METRICS" subtitle="SPY 500 + $1B+ UNIVERSES" badge="LIVE">
@@ -103,7 +112,7 @@ export default function App() {
         </WidgetCard>
       </main>
       <footer className="px-4 py-4 text-[9px] tracking-[0.25em] text-zinc-700 text-center">
-        DATA PIPELINE · SUPABASE EDGE FUNCTIONS · PG_CRON · 3 SCHEDULED JOBS
+        DATA PIPELINE · SUPABASE EDGE FUNCTIONS · PG_CRON · 4 SCHEDULED JOBS
       </footer>
     </div>
   );
