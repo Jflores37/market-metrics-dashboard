@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
+import { TickerLink } from "@/components/TickerChartModal";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
 import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
@@ -193,7 +194,7 @@ function WatchlistTable() {
           <tbody>
             {data.map((row) => (
               <tr key={row.ticker} className="border-b border-border-subtle/40 hover:bg-bg-hover">
-                <td className="py-1 pl-1 text-text-primary font-semibold">{row.ticker}</td>
+                <td className="py-1 pl-1"><TickerLink ticker={row.ticker} /></td>
                 <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">{row.sector || "—"}</td>
                 <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{usdCompact(row.market_cap_millions, "millions")}</td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
@@ -496,7 +497,9 @@ function StockbeeMomentum50() {
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1.5">
         {data.tickers.map((t) => (
-          <div key={t} className="font-mono text-xs text-text-primary font-semibold bg-bg-panel rounded px-2 py-1 text-center hover:bg-bg-hover transition-colors">{t}</div>
+          <div key={t} className="bg-bg-panel rounded text-center hover:bg-bg-hover transition-colors">
+            <TickerLink ticker={t} className="block px-2 py-1 text-xs w-full" />
+          </div>
         ))}
       </div>
     </div>
