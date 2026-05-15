@@ -1,7 +1,7 @@
 import { useState, useMemo, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { num, pct, usd, usdCompact, numCompact, colorClass } from "@/lib/format";
+import { num, pct, usd, usdCompact, numCompact } from "@/lib/format";
 import { useSortable, SortDir } from "@/lib/sortable";
 import { layoutFor, ScannerColKey } from "@/lib/scannerConfig";
 import CsvButton from "@/components/ui/CsvButton";
@@ -169,8 +169,13 @@ function tickerCell(r: ScannerResult): ReactNode {
   );
 }
 
+// Reference chg_color (src/constants.py L70-74) is binary: ≥0 = green,
+// <0 = red. No neutral band. fontWeight 600 on the Change cell
+// (layout.py:_build_screener_table L505).
 function pctCell(v: number | null | undefined): ReactNode {
-  return <span className={`tabular-nums ${colorClass(v)}`}>{pct(v, 1)}</span>;
+  if (v == null) return <span className="text-text-dim">—</span>;
+  const color = v >= 0 ? "text-accent-green" : "text-accent-red";
+  return <span className={`tabular-nums font-semibold ${color}`}>{pct(v, 1)}</span>;
 }
 
 const COL_SPECS: Record<ScannerColKey, ColumnSpec> = {
@@ -368,9 +373,11 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
 function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  // Reference _sortable_table_wrap (layout.py:2945) sorts the Earnings
+  // This Week card by market cap DESC.
   const { sorted, sortKey, sortDir, toggle } = useSortable<EarningsThisWeek>(rows, {
-    initialKey: "earnings_date",
-    initialDir: "asc",
+    initialKey: "market_cap_millions",
+    initialDir: "desc",
   });
 
   async function refresh() {
@@ -463,7 +470,7 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
                   </td>
                   <td className="py-1 px-2 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
                   <td className="py-1 px-2 text-text-secondary tabular-nums text-right text-2xs">{numCompact(row.avg_volume)}</td>
-                  <td className={`py-1 px-2 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                  <td className="py-1 px-2 tabular-nums text-right">{pctCell(row.perf_day)}</td>
                   <td className="py-1 px-2 text-text-secondary tabular-nums text-right text-2xs">{numCompact(row.volume)}</td>
                   <td className="py-1 px-2 text-text-secondary tabular-nums text-right">
                     {row.atr_pct == null ? "—" : `${num(row.atr_pct, 2)}%`}
