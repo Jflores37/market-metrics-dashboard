@@ -7,6 +7,8 @@ import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
 import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
+import RRGScatter from "@/components/mm/RRGScatter";
+import SP500Landscape from "@/components/mm/SP500Landscape";
 
 // ===== Pinned SIT Banner =====
 function PinnedSITBanner() {
@@ -531,6 +533,8 @@ export default function MarketMetrics() {
       <StockbeeMomentum50 />
 
       <IndustryThemeBlocks />
+      <RRGScatter />
+      <SP500Landscape />
     </div>
   );
 }
