@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 
-export default function TopBar() {
-  // Tick the clock once a minute so the time stays fresh
+export default function TopBar({
+  sidebarOpen,
+  onToggleSidebar,
+}: {
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+}) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -20,9 +25,18 @@ export default function TopBar() {
   });
 
   return (
-    <div className="px-4 md:px-6 py-2.5 border-b border-border-subtle bg-bg-card flex items-center justify-between gap-4">
-      <div className="font-mono text-xs text-text-dim shrink-0 md:hidden flex items-baseline gap-2">
-        <span className="text-accent-orange font-bold tracking-tight text-base">Pulse</span>
+    <div className="px-3 md:px-5 py-2 border-b border-border-subtle bg-bg-card flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={onToggleSidebar}
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          className="hidden md:flex items-center justify-center w-7 h-7 rounded text-text-secondary hover:text-accent-orange hover:bg-bg-hover transition-colors"
+        >
+          {sidebarOpen ? "✕" : "☰"}
+        </button>
+        <span className="text-accent-orange font-mono font-bold tracking-tight text-base md:hidden">
+          Pulse
+        </span>
       </div>
       <div className="font-mono text-xs text-text-secondary flex-1 text-center hidden sm:block tabular-nums">
         {date} · {time}
