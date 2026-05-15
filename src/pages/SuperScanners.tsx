@@ -75,6 +75,9 @@ interface EarningsThisWeek {
   sector: string | null;
   market_cap_millions: number | null;
   price: number | null;
+  volume: number | null;
+  avg_volume: number | null;
+  atr_pct: number | null;
   perf_day: number | null;
   perf_week: number | null;
   perf_month: number | null;
@@ -134,7 +137,7 @@ function useEarningsThisWeek() {
       const { data, error } = await supabase
         .from("earnings_this_week_v")
         .select(
-          "ticker, earnings_date, earnings_time, company, sector, market_cap_millions, price, perf_day, perf_week, perf_month, perf_year, rsi14"
+          "ticker, earnings_date, earnings_time, company, sector, market_cap_millions, price, volume, avg_volume, atr_pct, perf_day, perf_week, perf_month, perf_year, rsi14"
         );
       if (error) throw error;
       return (data ?? []) as EarningsThisWeek[];
@@ -246,6 +249,17 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
           </span>
         </div>
         <div className="flex items-baseline gap-3 shrink-0">
+          {scanner.finviz_url && scanner.finviz_url.startsWith("http") && (
+            <a
+              href={scanner.finviz_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-mono text-2xs text-accent-cyan hover:underline uppercase tracking-widest"
+              title="Open this filter on FinViz Elite"
+            >
+              FinViz
+            </a>
+          )}
           <span className="font-mono text-2xs text-text-dim">
             {scanner.source || "—"}
             {scanner.snapshot_date ? ` · ${scanner.snapshot_date}` : ""}
@@ -386,18 +400,17 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
             filename="earnings-this-week.csv"
             rows={sorted}
             columns={[
-              { header: "EarningsDate", value: (r) => r.earnings_date },
-              { header: "EarningsTime", value: (r) => r.earnings_time ?? "" },
               { header: "Ticker",       value: (r) => r.ticker },
-              { header: "Company",      value: (r) => r.company ?? "" },
-              { header: "Sector",       value: (r) => r.sector ?? "" },
               { header: "MarketCapM",   value: (r) => r.market_cap_millions },
               { header: "Price",        value: (r) => r.price },
-              { header: "PerfDay",      value: (r) => r.perf_day },
-              { header: "PerfWeek",     value: (r) => r.perf_week },
-              { header: "PerfMonth",    value: (r) => r.perf_month },
-              { header: "PerfYear",     value: (r) => r.perf_year },
-              { header: "RSI14",        value: (r) => r.rsi14 },
+              { header: "AvgVolume",    value: (r) => r.avg_volume },
+              { header: "Volume",       value: (r) => r.volume },
+              { header: "Change",       value: (r) => r.perf_day },
+              { header: "ATRpct",       value: (r) => r.atr_pct },
+              { header: "EarningsDate", value: (r) => r.earnings_date },
+              { header: "EarningsTime", value: (r) => r.earnings_time ?? "" },
+              { header: "Company",      value: (r) => r.company ?? "" },
+              { header: "Sector",       value: (r) => r.sector ?? "" },
             ]}
           />
           <WlButton
@@ -418,51 +431,47 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
       {rows.length === 0 ? (
         <div className="font-mono text-2xs text-text-dim text-center py-6">No earnings this week</div>
       ) : (
-        <div className="overflow-x-auto overflow-y-auto max-h-[320px] border border-border-subtle/60 rounded-[2px]">
-          <table className="w-full text-xs font-mono min-w-[800px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[360px] border border-border-subtle/60 rounded-[2px]">
+          {/* Reference layout.py L612-616: Ticker | Mkt Cap | Price | Avg Vol |
+              Rel Vol | Change | Vol | ATR % | Earnings Date. We omit Rel Vol
+              (not in equities_snapshot) and inline the earnings_time next to
+              earnings_date for ANC-vs-BMO clarity. */}
+          <table className="w-full text-xs font-mono">
             <thead className="border-b border-border-subtle bg-bg-card sticky top-0 z-10">
               <tr>
-                <SortableHeader<keyof EarningsThisWeek> label="Date" sortKey="earnings_date" activeKey={sortKey} dir={sortDir} onSort={toggle} className="pl-2" />
-                <SortableHeader<keyof EarningsThisWeek> label="Time" sortKey="earnings_time" activeKey={sortKey} dir={sortDir} onSort={toggle} />
-                <SortableHeader<keyof EarningsThisWeek> label="Ticker" sortKey="ticker" activeKey={sortKey} dir={sortDir} onSort={toggle} />
-                <SortableHeader<keyof EarningsThisWeek> label="Sector" sortKey="sector" activeKey={sortKey} dir={sortDir} onSort={toggle} className="hidden md:table-cell" />
-                <SortableHeader<keyof EarningsThisWeek> label="Cap" sortKey="market_cap_millions" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="Day %" sortKey="perf_day" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="Wk %" sortKey="perf_week" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="Mo %" sortKey="perf_month" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="Yr %" sortKey="perf_year" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
-                <SortableHeader<keyof EarningsThisWeek> label="RSI" sortKey="rsi14" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" className="pr-2" />
+                <SortableHeader<keyof EarningsThisWeek> label="Ticker"   sortKey="ticker"              activeKey={sortKey} dir={sortDir} onSort={toggle} className="pl-2" />
+                <SortableHeader<keyof EarningsThisWeek> label="Mkt Cap"  sortKey="market_cap_millions" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="Price"    sortKey="price"               activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="Avg Vol"  sortKey="avg_volume"          activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="Change"   sortKey="perf_day"            activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="Vol"      sortKey="volume"              activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="ATR %"    sortKey="atr_pct"             activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof EarningsThisWeek> label="Earnings" sortKey="earnings_date"       activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" className="pr-2" />
               </tr>
             </thead>
             <tbody>
               {sorted.map((row) => (
-                <tr
-                  key={`${row.ticker}-${row.earnings_date}`}
-                  className="border-b border-border-subtle/40 hover:bg-bg-hover"
-                >
-                  <td className="py-1 pl-2 text-text-secondary text-2xs tabular-nums">{row.earnings_date}</td>
-                  <td className="py-1 text-text-dim text-2xs">{row.earnings_time ?? "—"}</td>
-                  <td className="py-1">
+                <tr key={`${row.ticker}-${row.earnings_date}`} className="border-b border-border-subtle/40 hover:bg-bg-hover">
+                  <td className="py-1 pl-2">
                     <TickerLink ticker={row.ticker} />
                     {row.company && (
-                      <div className="text-text-dim text-2xs truncate max-w-[140px]">
-                        {row.company}
-                      </div>
+                      <div className="text-text-dim text-2xs truncate max-w-[140px]">{row.company}</div>
                     )}
                   </td>
-                  <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px] hidden md:table-cell">
-                    {row.sector || "—"}
-                  </td>
-                  <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">
+                  <td className="py-1 px-2 text-text-secondary tabular-nums text-right text-2xs">
                     {usdCompact(row.market_cap_millions, "millions")}
                   </td>
-                  <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
-                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
-                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
-                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
-                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
-                  <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-2">{num(row.rsi14, 0)}</td>
+                  <td className="py-1 px-2 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
+                  <td className="py-1 px-2 text-text-secondary tabular-nums text-right text-2xs">{numCompact(row.avg_volume)}</td>
+                  <td className={`py-1 px-2 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                  <td className="py-1 px-2 text-text-secondary tabular-nums text-right text-2xs">{numCompact(row.volume)}</td>
+                  <td className="py-1 px-2 text-text-secondary tabular-nums text-right">
+                    {row.atr_pct == null ? "—" : `${num(row.atr_pct, 2)}%`}
+                  </td>
+                  <td className="py-1 pr-2 text-text-secondary tabular-nums text-right text-2xs">
+                    {row.earnings_date}
+                    {row.earnings_time && <span className="text-text-dim"> · {row.earnings_time}</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
