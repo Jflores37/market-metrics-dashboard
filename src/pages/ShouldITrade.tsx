@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, colorClass } from "@/lib/format";
+import CategoryPanel, {
+  type DetailRow,
+  type BadgeTone,
+  TONE_BG,
+  TONE_DOT,
+  scoreColor,
+  scoreBg,
+} from "@/components/sit/CategoryPanel";
 
-// ===== Types =====
-type BadgeTone = "green" | "red" | "yellow" | "gray";
-interface DetailRow {
-  label: string;
-  value: string;
-  badge?: string | null;
-  badgeTone?: BadgeTone;
-}
 interface SITRow {
   snapshot_date: string;
   decision: string;
@@ -34,9 +34,9 @@ interface SITRow {
     macro?: { tnx: number | null; tnx_5d_trend: number | null };
   };
 }
+
 interface SectorRow { ticker: string; sector_label: string | null; perf_day: number | null; is_benchmark: boolean }
 
-// ===== Queries =====
 function useSIT() {
   return useQuery({
     queryKey: ["sit-swing-full"],
@@ -52,6 +52,7 @@ function useSIT() {
     enabled: isSupabaseConfigured,
   });
 }
+
 function useSectors() {
   return useQuery({
     queryKey: ["sit-sectors"],
@@ -66,25 +67,9 @@ function useSectors() {
   });
 }
 
-// ===== Style helpers =====
-const TONE_BG: Record<BadgeTone, string> = {
-  green: "bg-accent-green/15 text-accent-green",
-  red: "bg-accent-red/15 text-accent-red",
-  yellow: "bg-accent-yellow/15 text-accent-yellow",
-  gray: "bg-text-dim/15 text-text-secondary",
-};
-const TONE_DOT: Record<BadgeTone, string> = {
-  green: "bg-accent-green",
-  red: "bg-accent-red",
-  yellow: "bg-accent-yellow",
-  gray: "bg-text-dim",
-};
-const scoreColor = (s: number | null) => s == null ? "text-text-dim" : s >= 80 ? "text-accent-green" : s >= 60 ? "text-accent-yellow" : "text-accent-red";
-const scoreBg = (s: number | null) => s == null ? "bg-text-dim" : s >= 80 ? "bg-accent-green" : s >= 60 ? "bg-accent-yellow" : "bg-accent-red";
 const decBorder = (d: string) => d === "YES" ? "border-accent-green" : d === "CAUTION" ? "border-accent-yellow" : "border-accent-red";
 const decText = (d: string) => d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
 
-// ===== Gauge =====
 function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
   const v = value == null ? 0 : Math.max(0, Math.min(100, Number(value)));
   const cx = size / 2; const cy = size / 2;
@@ -108,7 +93,6 @@ function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
   );
 }
 
-// ===== Mini score chip (5 in hero row) =====
 function ScoreChip({ icon, name, score }: { icon: string; name: string; score: number | null }) {
   const v = score == null ? 0 : Number(score);
   return (
@@ -123,106 +107,6 @@ function ScoreChip({ icon, name, score }: { icon: string; name: string; score: n
   );
 }
 
-// ===== Category detail panel =====
-function CategoryPanel({ icon, name, score, rows }: { icon: string; name: string; score: number | null; rows: DetailRow[] }) {
-  return (
-    <div className="terminal-card p-4 flex flex-col">
-      <div className="flex items-baseline justify-between mb-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">{icon}</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">{name}</span>
-        </div>
-        <span className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(score)}`}>{num(score, 0)}</span>
-      </div>
-      <div className="space-y-2">
-        {rows.map((row, i) => (
-          <div key={i} className="flex items-center justify-between gap-1.5 text-2xs">
-            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              <span className={`inline-block w-1 h-1 rounded-full shrink-0 ${TONE_DOT[row.badgeTone ?? "gray"]}`} />
-              <span className="text-text-dim mono truncate">{row.label}</span>
-            </div>
-            <span className="font-mono text-text-primary tabular-nums shrink-0">{row.value}</span>
-            {row.badge && (
-              <span className={`px-1.5 py-0.5 rounded text-2xs mono font-semibold shrink-0 ${TONE_BG[row.badgeTone ?? "gray"]}`}>
-                {row.badge}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ===== Row builders =====
-function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
-  const v = r.volatility;
-  const vix = v?.vix ?? null;
-  const slope = v?.vix_5d_slope ?? null;
-  const pctile = v?.vix_1y_pct ?? null;
-  const vixTone: BadgeTone = vix == null ? "gray" : vix < 15 ? "green" : vix < 20 ? "yellow" : "red";
-  const slopeTone: BadgeTone = slope == null ? "gray" : Math.abs(slope) < 0.3 ? "yellow" : slope > 0 ? "red" : "green";
-  const pctileTone: BadgeTone = pctile == null ? "gray" : pctile < 33 ? "green" : pctile < 67 ? "yellow" : "red";
-  return [
-    { label: "VIX Level", value: vix != null ? num(vix, 2) : "—", badge: vixTone === "green" ? "Low" : vixTone === "yellow" ? "Normal" : "Elevated", badgeTone: vixTone },
-    { label: "VIX Trend", value: slope == null ? "—" : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badge: slope == null ? null : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badgeTone: slopeTone },
-    { label: "VIX 1Y %ile", value: pctile != null ? `${Math.round(pctile)}th` : "—", badge: pctileTone === "green" ? "Low" : pctileTone === "yellow" ? "Normal" : "High", badgeTone: pctileTone },
-    { label: "Put/Call", value: "—", badge: "Neutral", badgeTone: "gray" },
-  ];
-}
-function buildTrend(r: SITRow["raw_inputs"]): DetailRow[] {
-  const t = r.trend;
-  const above = (b: boolean | null | undefined): string => b == null ? "—" : b ? "Above" : "Below";
-  const aboveTone = (b: boolean | null | undefined): BadgeTone => b == null ? "gray" : b ? "green" : "red";
-  return [
-    { label: "SPX vs 20d", value: above(t?.spy_above_20), badge: t?.spy_above_20 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_20) },
-    { label: "SPX vs 50d", value: above(t?.spy_above_50), badge: t?.spy_above_50 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_50) },
-    { label: "SPX vs 200d", value: above(t?.spy_above_200), badge: t?.spy_above_200 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_200) },
-    { label: "QQQ Trend", value: t?.qqq_above_50 == null ? "—" : t.qqq_above_50 ? "Above 50d" : "Below 50d", badge: t?.qqq_above_50 ? "Strong" : "Weak", badgeTone: aboveTone(t?.qqq_above_50) },
-    { label: "Regime", value: t?.regime ? t.regime[0].toUpperCase() + t.regime.slice(1) : "—", badge: t?.regime === "uptrend" ? "Uptrend" : t?.regime === "downtrend" ? "Downtrend" : "Chop", badgeTone: t?.regime === "uptrend" ? "green" : t?.regime === "downtrend" ? "red" : "yellow" },
-  ];
-}
-function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
-  const b = r.breadth;
-  const fmtP = (n: number | null | undefined) => n == null ? "—" : `${num(n, 1)}%`;
-  const toneP = (n: number | null | undefined): BadgeTone => n == null ? "gray" : n >= 60 ? "green" : n >= 40 ? "gray" : "red";
-  const r5 = b?.ratio5 ?? null;
-  return [
-    { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: toneP(b?.pct_above_50) === "green" ? "Strong" : toneP(b?.pct_above_50) === "red" ? "Weak" : "Neutral", badgeTone: toneP(b?.pct_above_50) },
-    { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: toneP(b?.pct_above_200) === "green" ? "Strong" : toneP(b?.pct_above_200) === "red" ? "Weak" : "Neutral", badgeTone: toneP(b?.pct_above_200) },
-    { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: toneP(b?.pct_above_20) === "green" ? "Strong" : toneP(b?.pct_above_20) === "red" ? "Weak" : "Neutral", badgeTone: toneP(b?.pct_above_20) },
-    { label: "5d A/D", value: r5 != null ? `${num(r5, 2)}:1` : "—", badge: r5 == null ? "—" : r5 > 1.1 ? "Positive" : r5 < 0.9 ? "Negative" : "Flat", badgeTone: r5 == null ? "gray" : r5 > 1.1 ? "green" : r5 < 0.9 ? "red" : "yellow" },
-    { label: "Highs/Lows", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs lead" : b.new_lows > b.new_highs ? "Lows lead" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
-  ];
-}
-function buildMomentum(r: SITRow["raw_inputs"], sectorLabel: (t: string) => string): DetailRow[] {
-  const m = r.momentum;
-  const list = m?.sectors ?? [];
-  const pos = list.filter((s) => (s.chg ?? 0) > 0).length;
-  const total = list.length;
-  const top = m?.top3?.[0] ?? null;
-  const bot = m?.bottom3 ? m.bottom3[m.bottom3.length - 1] : null;
-  const broadTone: BadgeTone = total === 0 ? "gray" : pos >= total * 0.6 ? "green" : pos >= total * 0.4 ? "yellow" : "red";
-  return [
-    { label: "Sectors +", value: total ? `${pos}/${total}` : "—", badge: broadTone === "green" ? "Broad" : broadTone === "red" ? "Narrow" : "Mixed", badgeTone: broadTone },
-    { label: "Leader", value: top ? `${sectorLabel(top.ticker)} (${top.chg != null ? pct(top.chg, 2) : "—"})` : "—" },
-    { label: "Laggard", value: bot ? `${sectorLabel(bot.ticker)} (${bot.chg != null ? pct(bot.chg, 2) : "—"})` : "—" },
-    { label: "Spread", value: m?.spread != null ? `${num(m.spread, 2)}%` : "—", badge: m?.spread == null ? "—" : m.spread > 1.0 ? "Wide" : "Tight", badgeTone: m?.spread == null ? "gray" : m.spread > 1.0 ? "green" : "yellow" },
-  ];
-}
-function buildMacro(r: SITRow["raw_inputs"]): DetailRow[] {
-  const m = r.macro;
-  const yld = m?.tnx ?? null;
-  const tr = m?.tnx_5d_trend ?? null;
-  return [
-    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : Math.abs(tr) < 0.05 ? "yellow" : "yellow" },
-    { label: "10Y Δ 5d", value: tr != null ? `${tr > 0 ? "+" : ""}${num(tr * 100, 1)} bp` : "—" },
-    { label: "DXY", value: "—", badge: "Monitor", badgeTone: "gray" },
-    { label: "Geopolitical", value: "—", badge: "Monitor", badgeTone: "gray" },
-  ];
-}
-
-// ===== Sub-components for the bottom rows =====
 function SectorBar({ ticker, perf }: { ticker: string; perf: number | null }) {
   const p = perf ?? 0;
   const positive = p >= 0;
@@ -275,9 +159,96 @@ function WeightRow({ name, score, weight }: { name: string; score: number | null
   );
 }
 
+// ===== Row builders (UPDATED per the local Dash reference) =====
+
+function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
+  const v = r.volatility;
+  const vix = v?.vix ?? null;
+  const slope = v?.vix_5d_slope ?? null;
+  const pctile = v?.vix_1y_pct ?? null;
+  const vixTone: BadgeTone = vix == null ? "gray" : vix < 15 ? "green" : vix < 20 ? "yellow" : "red";
+  const slopeTone: BadgeTone = slope == null ? "gray" : Math.abs(slope) < 0.3 ? "yellow" : slope > 0 ? "red" : "green";
+  const pctileTone: BadgeTone = pctile == null ? "gray" : pctile < 33 ? "green" : pctile < 67 ? "yellow" : "red";
+  return [
+    { label: "VIX Level", value: vix != null ? num(vix, 2) : "—", badge: vixTone === "green" ? "Low" : vixTone === "yellow" ? "Normal" : "Elevated", badgeTone: vixTone },
+    { label: "VIX Trend", value: slope == null ? "—" : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badge: slope == null ? null : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badgeTone: slopeTone },
+    { label: "VIX 1Y %ile", value: pctile != null ? `${Math.round(pctile)}th` : "—", badge: pctileTone === "green" ? "Low" : pctileTone === "yellow" ? "Normal" : "High", badgeTone: pctileTone },
+    { label: "Put/Call", value: "—", badge: "Neutral", badgeTone: "gray" },
+  ];
+}
+
+function buildTrend(r: SITRow["raw_inputs"]): DetailRow[] {
+  const t = r.trend;
+  const above = (b: boolean | null | undefined): string => b == null ? "—" : b ? "Above" : "Below";
+  const aboveTone = (b: boolean | null | undefined): BadgeTone => b == null ? "gray" : b ? "green" : "red";
+  return [
+    { label: "SPX vs 20d", value: above(t?.spy_above_20), badge: t?.spy_above_20 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_20) },
+    { label: "SPX vs 50d", value: above(t?.spy_above_50), badge: t?.spy_above_50 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_50) },
+    { label: "SPX vs 200d", value: above(t?.spy_above_200), badge: t?.spy_above_200 ? "Intact" : "Broken", badgeTone: aboveTone(t?.spy_above_200) },
+    { label: "QQQ Trend", value: t?.qqq_above_50 == null ? "—" : t.qqq_above_50 ? "Above 50d" : "Below 50d", badge: t?.qqq_above_50 ? "Strong" : "Weak", badgeTone: aboveTone(t?.qqq_above_50) },
+    { label: "Regime", value: t?.regime ? t.regime[0].toUpperCase() + t.regime.slice(1) : "—", badge: t?.regime === "uptrend" ? "Uptrend" : t?.regime === "downtrend" ? "Downtrend" : "Chop", badgeTone: t?.regime === "uptrend" ? "green" : t?.regime === "downtrend" ? "red" : "yellow" },
+  ];
+}
+
+function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
+  const b = r.breadth;
+  const fmtP = (n: number | null | undefined) => n == null ? "—" : `${num(n, 1)}%`;
+  const toneP = (n: number | null | undefined): BadgeTone => n == null ? "gray" : n >= 60 ? "green" : n >= 40 ? "yellow" : "red";
+  const r5 = b?.ratio5 ?? null;
+  return [
+    { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: "Neutral", badgeTone: toneP(b?.pct_above_50) },
+    { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: "Neutral", badgeTone: toneP(b?.pct_above_200) },
+    { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: "Neutral", badgeTone: toneP(b?.pct_above_20) },
+    { label: "NYSE A/D", value: r5 != null ? `${num(r5, 2)}:1` : "—", badge: r5 == null ? "—" : r5 > 1.1 ? "Positive" : r5 < 0.9 ? "Negative" : "Flat", badgeTone: r5 == null ? "gray" : r5 > 1.1 ? "green" : r5 < 0.9 ? "red" : "yellow" },
+    { label: "NAS Highs/Lows", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
+  ];
+}
+
+function buildMomentum(r: SITRow["raw_inputs"], sectorLabel: (t: string) => string): DetailRow[] {
+  const m = r.momentum;
+  const list = m?.sectors ?? [];
+  const pos = list.filter((s) => (s.chg ?? 0) > 0).length;
+  const total = list.length;
+  const top = m?.top3?.[0] ?? null;
+  const bot = m?.bottom3 ? m.bottom3[m.bottom3.length - 1] : null;
+  const broadTone: BadgeTone = total === 0 ? "gray" : pos >= total * 0.6 ? "green" : pos >= total * 0.4 ? "yellow" : "red";
+
+  // Participation: derived from spread + sectors agreement
+  const spread = m?.spread ?? null;
+  let participation: { value: string; tone: BadgeTone };
+  if (total === 0) {
+    participation = { value: "—", tone: "gray" };
+  } else if (spread != null && Math.abs(spread) > 1.5) {
+    participation = { value: "Mixed", tone: "yellow" };
+  } else if (pos >= total * 0.75) {
+    participation = { value: "Strong", tone: "green" };
+  } else if (pos <= total * 0.25) {
+    participation = { value: "Weak", tone: "red" };
+  } else {
+    participation = { value: "Mixed", tone: "yellow" };
+  }
+
+  return [
+    { label: "Sectors +", value: total ? `${pos}/${total}` : "—", badge: broadTone === "green" ? "Broad" : broadTone === "red" ? "Narrow" : "Mixed", badgeTone: broadTone },
+    { label: "Leader", value: top ? `${sectorLabel(top.ticker)} (${top.chg != null ? pct(top.chg, 2) : "—"})` : "—", dotTone: "green" },
+    { label: "Laggard", value: bot ? `${sectorLabel(bot.ticker)} (${bot.chg != null ? pct(bot.chg, 2) : "—"})` : "—", dotTone: "red" },
+    { label: "Participation", value: participation.value, badge: participation.value === "—" ? null : participation.value, badgeTone: participation.tone },
+  ];
+}
+
+function buildMacro(r: SITRow["raw_inputs"]): DetailRow[] {
+  const m = r.macro;
+  const yld = m?.tnx ?? null;
+  const tr = m?.tnx_5d_trend ?? null;
+  return [
+    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : Math.abs(tr) < 0.05 ? "yellow" : "yellow" },
+    { label: "DXY", value: "—", badge: "Monitor", badgeTone: "gray" },
+    { label: "Geopolitical", value: "—", badge: "Monitor", badgeTone: "gray" },
+  ];
+}
+
 const ICONS = { vol: "〰", trend: "↗", breadth: "⊞", momentum: "↑", macro: "●" };
 
-// ===== Main page =====
 export default function ShouldITrade() {
   const { data, isLoading } = useSIT();
   const { data: sectors } = useSectors();
@@ -306,7 +277,6 @@ export default function ShouldITrade() {
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
       </div>
 
-      {/* Hero */}
       <div className="terminal-card p-5">
         <div className="flex items-center gap-5 flex-wrap">
           <div className="shrink-0 text-center">
@@ -335,7 +305,6 @@ export default function ShouldITrade() {
         </div>
       </div>
 
-      {/* 5 category panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
         <CategoryPanel icon={ICONS.vol} name="VOLATILITY" score={data.vol_score} rows={volRows} />
         <CategoryPanel icon={ICONS.trend} name="TREND" score={data.trend_score} rows={trendRows} />
@@ -344,7 +313,6 @@ export default function ShouldITrade() {
         <CategoryPanel icon={ICONS.macro} name="MACRO" score={data.macro_score} rows={macroRows} />
       </div>
 
-      {/* Execution window + Sector performance */}
       <div className="grid lg:grid-cols-2 gap-3">
         <div className="terminal-card p-5">
           <div className="flex items-baseline justify-between mb-3">
@@ -374,7 +342,6 @@ export default function ShouldITrade() {
         </div>
       </div>
 
-      {/* Scoring weights + AI narrative */}
       <div className="grid lg:grid-cols-2 gap-3">
         <div className="terminal-card p-5">
           <div className="flex items-baseline gap-2 mb-4">
