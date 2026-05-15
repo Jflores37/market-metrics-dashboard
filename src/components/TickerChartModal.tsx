@@ -16,27 +16,17 @@ export function useTickerModal(): TickerModalContextType {
   return ctx;
 }
 
-export function TickerLink({
-  ticker,
-  className,
-}: {
-  ticker: string;
-  className?: string;
-}) {
+export function TickerLink({ ticker, className }: { ticker: string; className?: string }) {
   const { open } = useTickerModal();
+  const cls = `text-text-primary font-mono font-semibold hover:text-accent-orange transition-colors cursor-pointer ${className ?? ""}`;
   return (
-    <button
-      type="button"
-      onClick={() => open(ticker)}
-      className={`text-text-primary font-mono font-semibold hover:text-accent-orange transition-colors cursor-pointer ${className ?? ""}`}
-    >
+    <button type="button" onClick={() => open(ticker)} className={cls}>
       {ticker}
     </button>
   );
 }
 
 function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }) {
-  // ESC closes the modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -45,7 +35,6 @@ function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // Lock body scroll while modal is open
   useEffect(() => {
     const original = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -55,47 +44,29 @@ function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }
   }, []);
 
   const src = `https://www.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(ticker)}&interval=D&theme=dark&style=1&hide_side_toolbar=1`;
+  const tvUrl = `https://www.tradingview.com/symbols/${encodeURIComponent(ticker)}/`;
+
+  const backdropClass = "fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4";
+  const cardClass = "bg-bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full max-w-5xl h-[90vh] sm:h-[80vh]";
+  const headerClass = "flex items-center justify-between border-b border-border-subtle px-4 py-2 shrink-0";
+  const closeBtnClass = "w-7 h-7 rounded text-text-secondary hover:text-accent-orange hover:bg-bg-hover transition-colors flex items-center justify-center text-base";
+  const openLinkClass = "font-mono text-2xs text-text-dim hover:text-accent-orange transition-colors";
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-bg-card border border-border rounded-lg overflow-hidden flex flex-col w-full max-w-5xl h-[90vh] sm:h-[80vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2 shrink-0">
+    <div className={backdropClass} onClick={onClose}>
+      <div className={cardClass} onClick={(e) => e.stopPropagation()}>
+        <div className={headerClass}>
           <div className="flex items-baseline gap-2">
             <span className="text-accent-orange text-sm">▶</span>
             <span className="font-mono text-sm font-bold text-text-primary">{ticker}</span>
             <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">TradingView</span>
           </div>
           <div className="flex items-center gap-3">
-            
-              href={`https://www.tradingview.com/symbols/${encodeURIComponent(ticker)}/`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-2xs text-text-dim hover:text-accent-orange transition-colors"
-            >
-              open ↗
-            </a>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close chart"
-              className="w-7 h-7 rounded text-text-secondary hover:text-accent-orange hover:bg-bg-hover transition-colors flex items-center justify-center text-base"
-            >
-              ✕
-            </button>
+            <a href={tvUrl} target="_blank" rel="noopener noreferrer" className={openLinkClass}>open ↗</a>
+            <button type="button" onClick={onClose} aria-label="Close chart" className={closeBtnClass}>✕</button>
           </div>
         </div>
-        <iframe
-          src={src}
-          className="flex-1 w-full border-0"
-          title={`${ticker} chart`}
-          allowFullScreen
-        />
+        <iframe src={src} className="flex-1 w-full border-0" title={`${ticker} chart`} allowFullScreen />
       </div>
     </div>
   );
