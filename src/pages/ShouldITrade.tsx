@@ -28,7 +28,7 @@ interface SITRow {
   narrative_text: string | null;
   suggested_action: string | null;
   raw_inputs: {
-    volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null };
+    volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null; vvix?: number | null };
     trend?: { spy_above_20: boolean | null; spy_above_50: boolean | null; spy_above_200: boolean | null; qqq_above_50: boolean | null; regime: string };
     breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; new_highs: number | null; new_lows: number | null };
     momentum?: { sectors: Array<{ ticker: string; chg: number | null }>; top3: Array<{ ticker: string; chg: number | null }>; bottom3: Array<{ ticker: string; chg: number | null }>; spread: number | null };
@@ -167,14 +167,18 @@ function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
   const vix = v?.vix ?? null;
   const slope = v?.vix_5d_slope ?? null;
   const pctile = v?.vix_1y_pct ?? null;
+  const vvix = v?.vvix ?? null;
   const vixTone: BadgeTone = vix == null ? "gray" : vix < 15 ? "green" : vix < 20 ? "yellow" : "red";
   const slopeTone: BadgeTone = slope == null ? "gray" : Math.abs(slope) < 0.3 ? "yellow" : slope > 0 ? "red" : "green";
   const pctileTone: BadgeTone = pctile == null ? "gray" : pctile < 33 ? "green" : pctile < 67 ? "yellow" : "red";
+  // VVIX is "VIX of VIX" — high VVIX means traders expect VIX itself to be volatile (uncertainty).
+  // Typical: ~80=calm, ~95=normal, >110=elevated. Below 80 = unusually calm.
+  const vvixTone: BadgeTone = vvix == null ? "gray" : vvix < 85 ? "green" : vvix < 105 ? "yellow" : "red";
   return [
     { label: "VIX Level", value: vix != null ? num(vix, 2) : "—", badge: vixTone === "green" ? "Low" : vixTone === "yellow" ? "Normal" : "Elevated", badgeTone: vixTone },
     { label: "VIX Trend", value: slope == null ? "—" : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badge: slope == null ? null : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badgeTone: slopeTone },
     { label: "VIX 1Y %ile", value: pctile != null ? `${Math.round(pctile)}th` : "—", badge: pctileTone === "green" ? "Low" : pctileTone === "yellow" ? "Normal" : "High", badgeTone: pctileTone },
-    { label: "Put/Call", value: "—", badge: "Neutral", badgeTone: "gray" },
+    { label: "VVIX", value: vvix != null ? num(vvix, 1) : "—", badge: vvixTone === "green" ? "Calm" : vvixTone === "yellow" ? "Normal" : "Stressed", badgeTone: vvixTone },
   ];
 }
 
