@@ -22,7 +22,10 @@ export type ScannerColKey =
   | "atr_pct"
   | "tag"
   | "week"
-  | "mkt_cap";
+  | "mkt_cap"
+  | "roe"
+  | "net_margin"
+  | "short_float";
 
 export interface ScannerLayout {
   columns: ScannerColKey[];
@@ -41,10 +44,16 @@ const WEEKLY_MOVER: ScannerColKey[] = ["ticker", "week", "price", "avg_vol", "re
 // StockBee 4% daily: change column comes BEFORE price.
 const DAILY_4PCT: ScannerColKey[] = ["ticker", "change", "price", "avg_vol", "rel_vol", "volume", "atr_pct"];
 
+// O'Neil full (reference build_oneil_table L1075): basic + ROE + Net Margin.
+const ONEIL: ScannerColKey[] = [...BASIC, "roe", "net_margin"];
+
+// High Short Float (reference L1328): Sh Float inserted right after Ticker.
+const HIGH_SHORT: ScannerColKey[] = ["ticker", "short_float", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
+
 export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
   // Trend group
   minervini:            { columns: BASIC },
-  canslim:              { columns: BASIC },
+  canslim:              { columns: ONEIL },
   jeff_sun_canslim:     { columns: BASIC },
   high_adr:             { columns: BASIC },
   extended_bases:       { columns: BASIC },
@@ -67,7 +76,7 @@ export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
   // Special
   up4_daily:            { columns: DAILY_4PCT },
   ipo_thisweek:         { columns: BASIC },
-  high_short:           { columns: BASIC },
+  high_short:           { columns: HIGH_SHORT },
   liquid_etfs:          { columns: BASIC },
 };
 

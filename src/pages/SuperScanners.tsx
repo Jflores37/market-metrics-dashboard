@@ -61,6 +61,9 @@ interface ScannerResult {
   atr_pct: number | null;
   stage_tag: string | null;
   dist_52w_high_pct: number | null;
+  roe: number | null;
+  net_margin: number | null;
+  short_float_pct: number | null;
   fetched_at: string;
 }
 
@@ -168,16 +171,19 @@ function pctCell(v: number | null | undefined): ReactNode {
 }
 
 const COL_SPECS: Record<ScannerColKey, ColumnSpec> = {
-  ticker:   { key: "ticker",   label: "Ticker",  sortKey: "ticker",              align: "left",  cell: (r) => tickerCell(r) },
-  price:    { key: "price",    label: "Price",   sortKey: "price",               align: "right", cell: (r) => <span className="text-text-primary tabular-nums">{usd(r.price, 2)}</span> },
-  avg_vol:  { key: "avg_vol",  label: "Avg Vol", sortKey: "avg_volume",          align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{numCompact(r.avg_volume)}</span> },
-  rel_vol:  { key: "rel_vol",  label: "Rel V",   sortKey: "rel_volume",          align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{num(r.rel_volume, 2)}</span> },
-  change:   { key: "change",   label: "Change",  sortKey: "perf_day",            align: "right", cell: (r) => pctCell(r.perf_day) },
-  volume:   { key: "volume",   label: "Vol",     sortKey: "volume",              align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{numCompact(r.volume)}</span> },
-  atr_pct:  { key: "atr_pct",  label: "ATR %",   sortKey: "atr_pct",             align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.atr_pct == null ? "—" : `${num(r.atr_pct, 2)}%`}</span> },
-  tag:      { key: "tag",      label: "Tag",     sortKey: "stage_tag",           align: "left",  cell: (r) => <StageTagBadge tag={r.stage_tag} /> },
-  week:     { key: "week",     label: "Week",    sortKey: "perf_week",           align: "right", cell: (r) => pctCell(r.perf_week) },
-  mkt_cap:  { key: "mkt_cap",  label: "Mkt Cap", sortKey: "market_cap_millions", align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{usdCompact(r.market_cap_millions, "millions")}</span> },
+  ticker:       { key: "ticker",       label: "Ticker",     sortKey: "ticker",              align: "left",  cell: (r) => tickerCell(r) },
+  price:        { key: "price",        label: "Price",      sortKey: "price",               align: "right", cell: (r) => <span className="text-text-primary tabular-nums">{usd(r.price, 2)}</span> },
+  avg_vol:      { key: "avg_vol",      label: "Avg Vol",    sortKey: "avg_volume",          align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{numCompact(r.avg_volume)}</span> },
+  rel_vol:      { key: "rel_vol",      label: "Rel V",      sortKey: "rel_volume",          align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{num(r.rel_volume, 2)}</span> },
+  change:       { key: "change",       label: "Change",     sortKey: "perf_day",            align: "right", cell: (r) => pctCell(r.perf_day) },
+  volume:       { key: "volume",       label: "Vol",        sortKey: "volume",              align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{numCompact(r.volume)}</span> },
+  atr_pct:      { key: "atr_pct",      label: "ATR %",      sortKey: "atr_pct",             align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.atr_pct == null ? "—" : `${num(r.atr_pct, 2)}%`}</span> },
+  tag:          { key: "tag",          label: "Tag",        sortKey: "stage_tag",           align: "left",  cell: (r) => <StageTagBadge tag={r.stage_tag} /> },
+  week:         { key: "week",         label: "Week",       sortKey: "perf_week",           align: "right", cell: (r) => pctCell(r.perf_week) },
+  mkt_cap:      { key: "mkt_cap",      label: "Mkt Cap",    sortKey: "market_cap_millions", align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{usdCompact(r.market_cap_millions, "millions")}</span> },
+  roe:          { key: "roe",          label: "ROE",        sortKey: "roe",                 align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.roe == null ? "—" : `${num(r.roe, 1)}%`}</span> },
+  net_margin:   { key: "net_margin",   label: "Net Margin", sortKey: "net_margin",          align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.net_margin == null ? "—" : `${num(r.net_margin, 1)}%`}</span> },
+  short_float:  { key: "short_float",  label: "Sh Float",   sortKey: "short_float_pct",     align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.short_float_pct == null ? "—" : `${num(r.short_float_pct, 1)}%`}</span> },
 };
 
 function ScannerCard({ scanner }: { scanner: ScannerSummary }) {

@@ -1,13 +1,21 @@
-// fetch-finviz-scanners v5 — FinViz-Elite parity rebuild.
+// fetch-finviz-scanners v6 — FinViz-Elite parity, universal-column view.
 //
-// Each scanner uses its VERBATIM FinViz Elite export URL (copied from the
-// reference repo's src/constants.py FINVIZ_EXPORT_URLS, finviz-elite branch).
-// We persist FinViz's CSV values as-is — only atr_pct is derived
-// (atr / price * 100). No in-edge re-ranking; FinViz's &o= ordering wins.
+// Each scanner uses its VERBATIM filter set from the reference repo's
+// src/constants.py FINVIZ_EXPORT_URLS (pakkiraju/Market-Metrics-,
+// finviz-elite). We override the per-URL `v=` and `c=` parameters to
+// always pull v=152 (FinViz's universal column registry) over the full
+// 1–79 range, then parse by CSV HEADER NAME so column-position drift
+// across views doesn't matter. The reference URLs use mixed views
+// (v=141/161/131/111) with view-specific column numbering — only by
+// normalizing to v=152 do ROE / Profit Margin / Short Float consistently
+// resolve to the same fields across scanners.
 //
-// Dispatch: ?group=trend|perf|special|all   (default: trend)
-//           ?only=<scanner_id>              (single scanner debug)
-//           ?earnings=1                     (also refresh earnings calendar)
+// Only derived value: atr_pct = atr / price * 100. Everything else is
+// stored as FinViz returned it.
+//
+// Dispatch: ?group=trend|perf|perf2|special|all   (default: trend)
+//           ?only=<scanner_id>                    (single scanner debug)
+//           ?earnings=1                           (refresh earnings calendar)
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -56,7 +64,6 @@ function pct(s?: string): number | null {
   const n = parseFloat(t.replace(/%$/, "")); return Number.isFinite(n) ? n : null;
 }
 
-// FinViz numeric: bare number, K/M/B suffix, commas, or trailing %.
 function num(s?: string): number | null {
   if (!s) return null; const t = s.trim();
   if (t === "" || t === "-") return null;
@@ -79,62 +86,41 @@ function findCol(headers: string[], cands: string[]): number {
   return -1;
 }
 
-// ----- Reference FinViz export URLs (verbatim from constants.py) -------------
-// Stripped of any &auth= — added at fetch time. The auth secret is in
-// app_config.finviz_token.
-const REF_URLS: Record<string, string> = {
-  qulla_episodic:
-    "https://elite.finviz.com/export.ashx?v=141&f=ta_gap_u10,sh_relvol_o2,sh_price_o1,sh_avgvol_o1000&o=-change&c=1,47,61,62,63,64,65",
-  qulla_breakouts:
-    "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_highlow52w_0to25-bhx,ta_perf_30to-4w,tad_0_close::close:d|abvpct::10:|sma:20:sma:d&o=-change&c=1,47,61,62,63,64,65",
-  qulla_ps_large:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_largeover,ta_perf_50to-4w&o=-change&c=1,47,61,62,63,64,65",
-  qulla_ps_small:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_to9,ta_perf_300to-4w,ta_perf2_100to-1w&ft=4&o=-change&c=1,47,61,62,63,64,65",
-  minervini:
-    "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_sma200_pa,tad_0_sma:150:sma:d|abv:::1|close::close:d,tad_1_sma:200:sma:d|abv:::1|close::close:d,tad_2_sma:200:sma:d|abv:::1|sma:150:sma:d,tad_3_sma:50:sma:d|abv:::|sma:150:sma:d,tad_4_sma:50:sma:d|abv:::|sma:200:sma:d,tad_5_sma:50:sma:d|abv:::1|close::close:d,tad_6_close::close:d|abvpct:30::|hilo:52:low:d,tad_7_close::close:d|blwpct::25:|hilo:52:high:d,tad_8_rsi:14:rsi:d|abveq:::|value:::70&o=-change&c=1,47,61,62,63,64,65",
-  oneil:
-    "https://elite.finviz.com/export.ashx?v=161&f=fa_epsyoy_o25,fa_epsyoy1_o25,fa_epsyoyttm_pos,fa_netmargin_pos,fa_roe_pos&o=-change&ft=2&c=1,32,40,47,61,62,63,64,65",
-  jeff_sun_canslim:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,fa_salesqoq_high,fa_salesyoyttm_high,sh_avgvol_500to,sh_curvol_o2000,sh_insttrans_pos,ta_highlow20d_a5h,ta_highlow50d_a5h,ta_volatility_wo4&ft=4&o=-change&c=1,47,61,62,63,64,65",
-  jeff_sun_high_adr:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,sh_avgvol_500to,sh_curvol_o2000,sh_relvol_o2,ta_volatility_wo10&ft=4&o=-change&c=1,47,61,62,63,64,65",
-  jeff_sun_extended_bases:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o1000,sh_curvol_o1000,sh_insttrans_pos,sh_price_o1,ta_alltime_b70h,ta_highlow50d_a15h,ta_highlow52w_b30h,ta_perf_ytddown,ta_sma200_-20to20-a,ta_volatility_wo4&ft=4&o=-change&c=1,47,61,62,63,64,65",
-  jeff_sun_1w20:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_1w20o,ta_volatility_wo4&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
-  jeff_sun_4w30:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w30o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
-  jeff_sun_4w50:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w50o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
-  jeff_sun_13w50:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_13w50o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
-  jeff_sun_26w100:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_26w100o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
-  jeff_sun_ipo_thisweek:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,fa_epsyoy1_pos,ipodate_prevyear,sh_avgvol_o1000&ft=4&o=industry&c=1,47,61,62,63,64,65",
-  jeff_sun_high_short_float:
-    "https://elite.finviz.com/export.ashx?v=131&f=cap_smallover,ind_stocksonly,sh_avgvol_o1000,sh_float_u100,sh_short_o30&ft=4&c=1,32,47,61,62,63,64,65",
-  jeff_sun_liquid_etfs:
-    "https://elite.finviz.com/export.ashx?v=111&f=ind_exchangetradedfund,sh_avgvol_o1000,ta_volatility_wo3&ft=4&o=-volume&c=1,47,61,62,63,64,65",
-  julian_komar_strongest:
-    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,ind_stocksonly,sh_avgvol_o100,sh_price_o7,ta_highlow52w_a70h,ta_sma50_pa&ft=4&o=-low52w&c=1,47,61,62,63,64,65",
-  up4_daily:
-    "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d&o=-change&c=1,47,61,62,63,64,65",
+// ----- Reference FinViz filter strings (verbatim from constants.py) ----------
+// We use ONLY the `f=` parameter from each reference URL. Other params
+// (v=, c=, o=, ft=) are stripped and replaced with our universal
+// v=152 + wide c= range. Sort defaults are applied client-side in the
+// React layer (matches reference layout.py:2773 "change DESC").
+const REF_FILTERS: Record<string, string> = {
+  qulla_episodic:            "ta_gap_u10,sh_relvol_o2,sh_price_o1,sh_avgvol_o1000",
+  qulla_breakouts:           "sh_avgvol_o1000,sh_price_o1,ta_highlow52w_0to25-bhx,ta_perf_30to-4w,tad_0_close::close:d|abvpct::10:|sma:20:sma:d",
+  qulla_ps_large:            "cap_largeover,ta_perf_50to-4w",
+  qulla_ps_small:            "cap_to9,ta_perf_300to-4w,ta_perf2_100to-1w",
+  minervini:                 "sh_avgvol_o1000,sh_price_o1,ta_sma200_pa,tad_0_sma:150:sma:d|abv:::1|close::close:d,tad_1_sma:200:sma:d|abv:::1|close::close:d,tad_2_sma:200:sma:d|abv:::1|sma:150:sma:d,tad_3_sma:50:sma:d|abv:::|sma:150:sma:d,tad_4_sma:50:sma:d|abv:::|sma:200:sma:d,tad_5_sma:50:sma:d|abv:::1|close::close:d,tad_6_close::close:d|abvpct:30::|hilo:52:low:d,tad_7_close::close:d|blwpct::25:|hilo:52:high:d,tad_8_rsi:14:rsi:d|abveq:::|value:::70",
+  oneil:                     "fa_epsyoy_o25,fa_epsyoy1_o25,fa_epsyoyttm_pos,fa_netmargin_pos,fa_roe_pos",
+  jeff_sun_canslim:          "cap_midover,fa_salesqoq_high,fa_salesyoyttm_high,sh_avgvol_500to,sh_curvol_o2000,sh_insttrans_pos,ta_highlow20d_a5h,ta_highlow50d_a5h,ta_volatility_wo4",
+  jeff_sun_high_adr:         "cap_midover,sh_avgvol_500to,sh_curvol_o2000,sh_relvol_o2,ta_volatility_wo10",
+  jeff_sun_extended_bases:   "cap_smallover,sh_avgvol_o1000,sh_curvol_o1000,sh_insttrans_pos,sh_price_o1,ta_alltime_b70h,ta_highlow50d_a15h,ta_highlow52w_b30h,ta_perf_ytddown,ta_sma200_-20to20-a,ta_volatility_wo4",
+  jeff_sun_1w20:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_1w20o,ta_volatility_wo4",
+  jeff_sun_4w30:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w30o,ta_volatility_mo5",
+  jeff_sun_4w50:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w50o,ta_volatility_mo5",
+  jeff_sun_13w50:            "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_13w50o,ta_volatility_mo5",
+  jeff_sun_26w100:           "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_26w100o,ta_volatility_mo5",
+  jeff_sun_ipo_thisweek:     "cap_midover,fa_epsyoy1_pos,ipodate_prevyear,sh_avgvol_o1000",
+  jeff_sun_high_short_float: "cap_smallover,ind_stocksonly,sh_avgvol_o1000,sh_float_u100,sh_short_o30",
+  jeff_sun_liquid_etfs:      "ind_exchangetradedfund,sh_avgvol_o1000,ta_volatility_wo3",
+  julian_komar_strongest:    "cap_smallover,ind_stocksonly,sh_avgvol_o100,sh_price_o7,ta_highlow52w_a70h,ta_sma50_pa",
+  up4_daily:                 "sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d",
 };
 
-// Union column set: Ticker, Company, Sector, Industry, MarketCap, Price,
-// PerfWeek, PerfMonth, PerfQuarter, PerfHalf, PerfYear, PerfYtd, ATR, AvgVol,
-// RelVol, Change, Volume, 52w High, 52w Low, RSI(14), Short Float.
-const UNION_COLS = "1,2,3,4,6,41,42,43,44,45,46,47,50,51,52,55,56,61,62,63,64,65,67,73,79";
+// Wide column set across v=152's column registry. Covers everything the
+// dashboard renders today plus ROE (32), Profit Margin (40), Short
+// Float (67), Earnings Date (67/73 — view-dependent).
+const UNION_COLS =
+  "1,2,3,4,6,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,50,51,52,55,56,61,62,63,64,65,67,68,73,79";
 
-function buildUrl(baseUrl: string, auth: string): string {
-  // Replace any existing &c= with UNION_COLS so we always pull the full
-  // column set the dashboard needs, regardless of what the reference URL
-  // requested. Filters and &o= sort are preserved.
-  const stripped = baseUrl.replace(/(?:^|[?&])c=[^&]*/, (m) => m[0] === "?" ? "?" : "&");
-  const sep = stripped.includes("?") ? "&" : "?";
-  return `${stripped}${sep}c=${UNION_COLS}&auth=${auth}`;
+function buildExportUrl(filters: string, auth: string): string {
+  return `https://elite.finviz.com/export.ashx?v=152&f=${filters}&ft=4&c=${UNION_COLS}&auth=${auth}`;
 }
 
 // ----- Row parsing -----------------------------------------------------------
@@ -146,11 +132,11 @@ type ParsedRow = {
   perfQuarter: number | null; perfHalf: number | null; perfYear: number | null; perfYtd: number | null;
   atr: number | null; rsi14: number | null;
   high52wPct: number | null; low52wPct: number | null;
-  shortFloat: number | null;
+  roe: number | null; netMargin: number | null; shortFloat: number | null;
 };
 
-async function finvizPullRef(baseUrl: string, auth: string): Promise<ParsedRow[]> {
-  const url = buildUrl(baseUrl, auth);
+async function finvizPull(filters: string, auth: string): Promise<ParsedRow[]> {
+  const url = buildExportUrl(filters, auth);
   const attempts = [0, 3000, 6000]; let lastErr: Error | null = null;
   for (let i = 0; i < attempts.length; i++) {
     if (attempts[i] > 0) await sleep(attempts[i]);
@@ -190,6 +176,8 @@ async function finvizPullRef(baseUrl: string, auth: string): Promise<ParsedRow[]
         high52w:     findCol(headers, ["52-Week High"]),
         low52w:      findCol(headers, ["52-Week Low"]),
         rsi14:       findCol(headers, ["Relative Strength Index (14)"]),
+        roe:         findCol(headers, ["Return on Equity"]),
+        netMargin:   findCol(headers, ["Profit Margin", "Net Margin"]),
         shortFloat:  findCol(headers, ["Short Float"]),
       };
       const get = (row: string[], k: number) => k >= 0 ? row[k] : undefined;
@@ -219,6 +207,8 @@ async function finvizPullRef(baseUrl: string, auth: string): Promise<ParsedRow[]
           rsi14: num(get(row, idx.rsi14)),
           high52wPct: pct(get(row, idx.high52w)),
           low52wPct: pct(get(row, idx.low52w)),
+          roe: pct(get(row, idx.roe)),
+          netMargin: pct(get(row, idx.netMargin)),
           shortFloat: pct(get(row, idx.shortFloat)),
         });
       }
@@ -235,8 +225,6 @@ function toRecord(scannerId: string, snapshotDate: string, r: ParsedRow, rank: n
   const atrPct = r.atr != null && r.price != null && r.price !== 0
     ? Math.round((r.atr / r.price) * 100 * 100) / 100
     : null;
-  // 52w-high distance: FinViz returns -X% (negative) meaning X% below high.
-  // dist_52w_high_pct stored as positive absolute distance for cleaner sorting.
   const dist52wHighPct = r.high52wPct != null ? Math.abs(r.high52wPct) : null;
   return {
     scanner_id: scannerId, ticker: r.ticker, snapshot_date: snapshotDate, rank,
@@ -248,6 +236,7 @@ function toRecord(scannerId: string, snapshotDate: string, r: ParsedRow, rank: n
     perf_year: r.perfYear, perf_ytd: r.perfYtd,
     rsi14: r.rsi14, atr: r.atr, atr_pct: atrPct,
     stage_tag: stageTag, dist_52w_high_pct: dist52wHighPct,
+    roe: r.roe, net_margin: r.netMargin, short_float_pct: r.shortFloat,
     extras: null as Record<string, unknown> | null,
   };
 }
@@ -260,20 +249,19 @@ async function upsertScanner(scannerId: string, snapshotDate: string, records: R
   if (error) throw error;
 }
 
-// ----- Per-scanner runners ---------------------------------------------------
-async function runSingleUrl(scannerId: string, urlKey: string, auth: string, snapshotDate: string, stageTag: string | null = null) {
-  const url = REF_URLS[urlKey];
-  if (!url) throw new Error(`No REF_URLS entry for ${urlKey}`);
-  const raw = await finvizPullRef(url, auth);
+async function runSingleUrl(scannerId: string, filterKey: string, auth: string, snapshotDate: string, stageTag: string | null = null) {
+  const filters = REF_FILTERS[filterKey];
+  if (!filters) throw new Error(`No REF_FILTERS entry for ${filterKey}`);
+  const raw = await finvizPull(filters, auth);
   const records = raw.map((r, i) => toRecord(scannerId, snapshotDate, r, i + 1, stageTag));
   await upsertScanner(scannerId, snapshotDate, records);
   return { fetched: raw.length, inserted: records.length };
 }
 
 async function runParabolicShort(auth: string, snapshotDate: string) {
-  const large = await finvizPullRef(REF_URLS.qulla_ps_large, auth);
+  const large = await finvizPull(REF_FILTERS.qulla_ps_large, auth);
   await sleep(CALL_DELAY_MS);
-  const small = await finvizPullRef(REF_URLS.qulla_ps_small, auth);
+  const small = await finvizPull(REF_FILTERS.qulla_ps_small, auth);
   const byTicker = new Map<string, ParsedRow>();
   for (const r of large) if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, r);
   for (const r of small) if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, r);
@@ -285,13 +273,13 @@ async function runParabolicShort(auth: string, snapshotDate: string) {
 }
 
 async function runQullamaggieCombined(auth: string, snapshotDate: string) {
-  const ep = await finvizPullRef(REF_URLS.qulla_episodic, auth);
+  const ep = await finvizPull(REF_FILTERS.qulla_episodic, auth);
   await sleep(CALL_DELAY_MS);
-  const psL = await finvizPullRef(REF_URLS.qulla_ps_large, auth);
+  const psL = await finvizPull(REF_FILTERS.qulla_ps_large, auth);
   await sleep(CALL_DELAY_MS);
-  const psS = await finvizPullRef(REF_URLS.qulla_ps_small, auth);
+  const psS = await finvizPull(REF_FILTERS.qulla_ps_small, auth);
   await sleep(CALL_DELAY_MS);
-  const bo = await finvizPullRef(REF_URLS.qulla_breakouts, auth);
+  const bo = await finvizPull(REF_FILTERS.qulla_breakouts, auth);
   const tagsByTicker = new Map<string, { row: ParsedRow; tags: Set<string> }>();
   for (const r of ep)  { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("EP"); tagsByTicker.set(r.ticker, e); }
   for (const r of psL) { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("PS"); tagsByTicker.set(r.ticker, e); }
@@ -307,7 +295,6 @@ async function runQullamaggieCombined(auth: string, snapshotDate: string) {
   return { fetched: ep.length + psL.length + psS.length + bo.length, inserted: records.length };
 }
 
-// scanner_id (db) -> runner
 const RUNNERS: Record<string, (auth: string, snap: string) => Promise<{ fetched: number; inserted: number }>> = {
   minervini:            (a, s) => runSingleUrl("minervini", "minervini", a, s),
   canslim:              (a, s) => runSingleUrl("canslim", "oneil", a, s),
@@ -330,8 +317,6 @@ const RUNNERS: Record<string, (auth: string, snap: string) => Promise<{ fetched:
   liquid_etfs:          (a, s) => runSingleUrl("liquid_etfs", "jeff_sun_liquid_etfs", a, s),
 };
 
-// Groups follow scanner_catalog.group_tab. 6-7 per call to stay under the
-// edge runtime wall-clock limit (~25s for the full set with 1.5s spacing).
 const GROUPS: Record<string, string[]> = {
   trend:   ["minervini", "canslim", "jeff_sun_canslim", "high_adr", "extended_bases", "julian_strongest"],
   perf:    ["qullamaggie", "qullamaggie_combined", "qullamaggie_breakout", "parabolic_short", "perf_1w20", "perf_4w30"],
@@ -339,7 +324,6 @@ const GROUPS: Record<string, string[]> = {
   special: ["ipo_thisweek", "high_short", "liquid_etfs"],
 };
 
-// Earnings calendar: unchanged from v4 (same data shape, FinViz earnings_thisweek).
 function parseEarningsDate(raw: string | null): { date: string | null; time: string | null } {
   if (!raw) return { date: null, time: null };
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(.+))?$/.exec(raw.trim());
@@ -353,12 +337,8 @@ function parseEarningsDate(raw: string | null): { date: string | null; time: str
 }
 
 async function fetchEarningsThisWeek(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number }> {
-  const url =
-    "https://elite.finviz.com/export.ashx?v=161&f=earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap";
-  const raw = await finvizPullRef(url, auth);
+  const raw = await finvizPull("earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1", auth);
   const out: Array<Record<string, unknown>> = []; const seen = new Set<string>();
-  // The Earnings Date column is at FinViz v=161; UNION_COLS doesn't include it.
-  // Re-fetch a tiny earnings-date-only set for the dates.
   await sleep(CALL_DELAY_MS);
   const dateRes = await fetch(
     `https://elite.finviz.com/export.ashx?v=161&f=earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68&auth=${auth}`,
@@ -393,7 +373,6 @@ async function fetchEarningsThisWeek(auth: string): Promise<{ rows: Array<Record
   return { rows: out, raw: raw.length };
 }
 
-// ----- HTTP handler ----------------------------------------------------------
 Deno.serve(async (req: Request) => {
   const started = Date.now();
   const url = new URL(req.url);
