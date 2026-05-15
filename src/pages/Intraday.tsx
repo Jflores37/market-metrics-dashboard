@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, numCompact, colorClass, timeShort } from "@/lib/format";
+import { TickerLink } from "@/components/TickerChartModal";
 
 // ===== Types =====
 interface MoverRow {
@@ -115,7 +116,7 @@ function MoverTable({
                 className="border-b border-border-subtle/40 hover:bg-bg-hover"
               >
                 <td className="py-1 pl-1 text-text-dim tabular-nums">{row.rank}</td>
-                <td className="py-1 text-text-primary font-semibold">{row.ticker}</td>
+                <td className="py-1"><TickerLink ticker={row.ticker} /></td>
                 <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px] hidden md:table-cell">
                   {row.sector || "—"}
                 </td>
@@ -243,7 +244,7 @@ function EarningsRowComp({ row }: { row: EarningsRow }) {
           {row.bucket}
         </span>
       </td>
-      <td className="py-1.5 text-text-primary font-mono font-semibold">{row.ticker}</td>
+      <td className="py-1.5"><TickerLink ticker={row.ticker} /></td>
       <td className="py-1.5 text-text-secondary text-2xs font-mono">
         {row.earnings_time || "—"}
       </td>
