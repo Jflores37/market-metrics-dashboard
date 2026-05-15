@@ -6,14 +6,18 @@ interface TickerModalContextType {
   ticker: string | null;
 }
 
+const DEFAULT_CTX: TickerModalContextType = {
+  ticker: null,
+  open: () => {
+    console.warn("TickerModalProvider is not wrapping the app — modal will not open.");
+  },
+  close: () => {},
+};
+
 const TickerModalContext = createContext<TickerModalContextType | null>(null);
 
 export function useTickerModal(): TickerModalContextType {
-  const ctx = useContext(TickerModalContext);
-  if (!ctx) {
-    throw new Error("useTickerModal must be used inside TickerModalProvider");
-  }
-  return ctx;
+  return useContext(TickerModalContext) ?? DEFAULT_CTX;
 }
 
 export function TickerLink({ ticker, className }: { ticker: string; className?: string }) {
