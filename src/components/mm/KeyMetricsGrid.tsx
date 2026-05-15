@@ -23,6 +23,13 @@ type MetricEntry = {
 
 const UNIVERSES = ["NQ100", "SPY500", "DJIA", "RUS2000", "$1B+"];
 
+// Universe group banner shown above the column headers
+const UNIVERSE_GROUPS: Array<{ label: string; span: number }> = [
+  { label: "Major Indexes", span: 3 }, // NQ100 · SPY500 · DJIA
+  { label: "Broad",         span: 1 }, // RUS2000
+  { label: "Liquid",        span: 1 }, // $1B+
+];
+
 function pctTextColor(pct: number | null): string {
   if (pct == null) return "text-text-dim";
   if (pct >= 70) return "text-accent-green";
@@ -138,6 +145,18 @@ export default function KeyMetricsGrid() {
       <div className="overflow-x-auto">
         <table className="w-full font-mono min-w-[680px]">
           <thead className="border-b border-border-subtle">
+            <tr className="border-b border-border-subtle/60">
+              <th className="py-1 px-2" />
+              {UNIVERSE_GROUPS.map((g, i) => (
+                <th
+                  key={i}
+                  colSpan={g.span}
+                  className="py-1 px-2 text-center text-2xs text-accent-cyan uppercase tracking-widest font-semibold"
+                >
+                  {g.label}
+                </th>
+              ))}
+            </tr>
             <tr>
               <th className="py-2 px-2 text-left text-2xs text-text-dim uppercase tracking-wider">
                 Metric

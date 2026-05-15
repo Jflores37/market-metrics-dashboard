@@ -1,7 +1,27 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import Sparkline from "@/components/macro/Sparkline";
 import SignalDonut from "@/components/macro/SignalDonut";
+
+const REFRESH_INTERVAL_MIN = 30;
+
+function NextRefreshIndicator({ generatedAt }: { generatedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const generated = new Date(generatedAt).getTime();
+  if (Number.isNaN(generated)) return null;
+  const nextMs = generated + REFRESH_INTERVAL_MIN * 60_000;
+  const remainingMin = Math.max(0, Math.round((nextMs - now) / 60_000));
+  return (
+    <span className="font-mono text-2xs text-text-dim uppercase tracking-widest tabular-nums">
+      next refresh ~{remainingMin}m
+    </span>
+  );
+}
 
 type Signal = "hawkish" | "dovish" | "neutral" | "tightening";
 
@@ -202,6 +222,7 @@ export default function MacroMonitor() {
           <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Macro Monitor</h1>
           <span className="text-xs text-text-dim mono">— Policy & market signals</span>
         </div>
+        {data?.generated_at && <NextRefreshIndicator generatedAt={data.generated_at} />}
       </header>
 
       {!isSupabaseConfigured && (

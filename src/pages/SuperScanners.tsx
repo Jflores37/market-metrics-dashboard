@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
 
@@ -302,6 +302,20 @@ export default function SuperScanners() {
   );
   const { data: earningsRows, isLoading: earningsLoading } = useEarningsThisWeek(isEarnings);
 
+  const queryClient = useQueryClient();
+  const [refreshingScanner, setRefreshingScanner] = useState(false);
+  async function refreshActiveScanner() {
+    if (!scannerId) return;
+    setRefreshingScanner(true);
+    try {
+      await queryClient.invalidateQueries({
+        queryKey: isEarnings ? ["earnings-thisweek"] : ["scanner-results", scannerId],
+      });
+    } finally {
+      setTimeout(() => setRefreshingScanner(false), 300);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
@@ -375,10 +389,20 @@ export default function SuperScanners() {
                     {activeScanner.label}
                   </span>
                 </div>
-                <span className="font-mono text-2xs text-text-dim">
-                  {activeScanner.source || "—"}
-                  {activeScanner.snapshot_date ? ` · ${activeScanner.snapshot_date}` : ""}
-                </span>
+                <div className="flex items-baseline gap-3">
+                  <span className="font-mono text-2xs text-text-dim">
+                    {activeScanner.source || "—"}
+                    {activeScanner.snapshot_date ? ` · ${activeScanner.snapshot_date}` : ""}
+                  </span>
+                  <button
+                    onClick={refreshActiveScanner}
+                    aria-label="Refresh scanner results"
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
+                  >
+                    <span className={refreshingScanner ? "animate-spin inline-block" : "inline-block"}>↻</span>
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
               </div>
               {activeScanner.description && (
                 <div className="text-xs text-text-secondary mono leading-relaxed">
