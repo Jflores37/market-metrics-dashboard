@@ -39,8 +39,7 @@ function useTickerTape() {
       }
 
       for (const row of sectors.data ?? []) {
-        if (row.is_benchmark) continue; // skip VTI
-        // Skip if already in intraday list
+        if (row.is_benchmark) continue;
         if (items.some((x) => x.ticker === row.ticker)) continue;
         items.push({
           ticker: row.ticker,
@@ -60,26 +59,37 @@ function useTickerTape() {
   });
 }
 
+function TickerRow({ items }: { items: TickerItem[] }) {
+  return (
+    <>
+      {items.map((item) => (
+        <div
+          key={item.ticker}
+          className="inline-flex items-baseline gap-1.5 font-mono text-xs px-3"
+        >
+          <span className="text-text-secondary font-semibold tracking-wider">
+            {item.label}
+          </span>
+          <span className={`${colorClass(item.change_pct)} tabular-nums`}>
+            {pct(item.change_pct, 2)}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function TickerTape() {
   const { data } = useTickerTape();
   if (!data || data.length === 0) return null;
 
+  // Duplicate the row so the marquee animation can loop seamlessly
+  // (translateX -50% lands the second copy exactly where the first started).
   return (
-    <div className="border-b border-border-subtle bg-bg-panel overflow-x-auto">
-      <div className="flex items-center gap-5 py-2 px-4 whitespace-nowrap min-w-max">
-        {data.map((item) => (
-          <div
-            key={item.ticker}
-            className="inline-flex items-baseline gap-1.5 font-mono text-xs"
-          >
-            <span className="text-text-secondary font-semibold tracking-wider">
-              {item.label}
-            </span>
-            <span className={`${colorClass(item.change_pct)} tabular-nums`}>
-              {pct(item.change_pct, 2)}
-            </span>
-          </div>
-        ))}
+    <div className="group border-b border-border-subtle bg-bg-panel overflow-hidden">
+      <div className="flex items-center py-2 whitespace-nowrap animate-marquee w-max">
+        <TickerRow items={data} />
+        <TickerRow items={data} />
       </div>
     </div>
   );

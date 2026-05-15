@@ -13,6 +13,7 @@ export interface Tab {
   path: string;
   label: string;
   shortLabel: string;
+  glyph: string;
   description: string;
 }
 
@@ -22,6 +23,7 @@ export const TABS: readonly Tab[] = [
     path: "/",
     label: "Market Metrics",
     shortLabel: "Metrics",
+    glyph: "⊞",
     description: "Universe breadth · sectors · leading industries · stage analysis",
   },
   {
@@ -29,6 +31,7 @@ export const TABS: readonly Tab[] = [
     path: "/scanners",
     label: "Super Scanners",
     shortLabel: "Scanners",
+    glyph: "⊙",
     description: "19 curated scanners: Minervini, CANSLIM, Qullamaggie, IPOs, earnings",
   },
   {
@@ -36,6 +39,7 @@ export const TABS: readonly Tab[] = [
     path: "/intraday",
     label: "Intraday",
     shortLabel: "Intraday",
+    glyph: "▶",
     description: "Live tape · top gainers · top losers · stocks in play · pre-market",
   },
   {
@@ -43,6 +47,7 @@ export const TABS: readonly Tab[] = [
     path: "/macro",
     label: "Macro Monitor",
     shortLabel: "Macro",
+    glyph: "◉",
     description: "12 FRED KPIs · fiscal block · hawkish/dovish balance",
   },
   {
@@ -50,6 +55,7 @@ export const TABS: readonly Tab[] = [
     path: "/should-i-trade",
     label: "Should I Trade",
     shortLabel: "SIT",
+    glyph: "⚡",
     description: "5-factor market quality score · execution window · swing/day mode",
   },
 ] as const;

@@ -3,6 +3,7 @@ import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import TickerTape from "@/components/layout/TickerTape";
+import TerminalFrame from "@/components/layout/TerminalFrame";
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -18,10 +19,10 @@ export default function Layout() {
           onToggleSidebar={() => setSidebarOpen((v) => !v)}
         />
         <TickerTape />
-        <main className="flex-1 px-4 md:px-6 py-4 w-full">
+        <TerminalFrame>
           <Outlet />
-        </main>
-        <footer className="border-t border-border-subtle px-4 md:px-6 py-3 text-2xs text-text-dim mono">
+        </TerminalFrame>
+        <footer className="border-t border-border-subtle px-4 md:px-6 py-3 text-2xs text-text-dim mono uppercase tracking-widest text-center">
           Pulse · backend cron-driven · data refreshes every 10 min during market hours
         </footer>
       </div>
