@@ -60,7 +60,7 @@ export default function CategoryPanel({
       {/* Header */}
       <div className="flex items-baseline justify-between mb-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">{icon}</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">{icon}</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             {name}
           </span>

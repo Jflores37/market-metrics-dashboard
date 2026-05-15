@@ -131,7 +131,7 @@ function ScannerChip({
       onClick={onClick}
       className={`text-left px-3 py-2 rounded border transition-colors ${
         active
-          ? "bg-bg-panel border-accent-orange text-accent-orange"
+          ? "bg-bg-panel border-accent-cyan text-accent-cyan signal-glow-cyan"
           : "bg-bg-card border-border-subtle text-text-secondary hover:text-text-primary hover:border-border"
       }`}
     >
@@ -306,8 +306,8 @@ export default function SuperScanners() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">⊙</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Super Scanners</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">⊙</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Super Scanners</h1>
           <span className="text-xs text-text-dim mono">— 19 curated screens</span>
         </div>
         {activeScanner && (
@@ -342,7 +342,7 @@ export default function SuperScanners() {
                 }}
                 className={`px-3 py-2 text-xs font-mono uppercase tracking-wider transition-colors border-b-2 ${
                   activeGroup === g
-                    ? "text-accent-orange border-accent-orange"
+                    ? "text-accent-cyan border-accent-cyan signal-glow-cyan"
                     : "text-text-secondary border-transparent hover:text-text-primary"
                 }`}
               >
@@ -370,7 +370,7 @@ export default function SuperScanners() {
             <div className="terminal-card p-4 space-y-2">
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-accent-orange">★</span>
+                  <span className="text-accent-amber signal-glow-amber">★</span>
                   <span className="font-mono text-sm font-semibold text-text-primary">
                     {activeScanner.label}
                   </span>

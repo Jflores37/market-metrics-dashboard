@@ -111,7 +111,7 @@ export default function RRGScatter() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◎</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◎</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             RRG · Sector Rotation
           </span>

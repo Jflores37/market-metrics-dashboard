@@ -47,7 +47,7 @@ function UniverseBreadthCard({ universe, rows }: { universe: string; rows: Bread
     <div className="terminal-card p-4">
       <div className="font-mono text-2xs uppercase tracking-widest font-semibold mb-3 flex items-center justify-between">
         <span className="text-text-secondary">
-          <span className="text-accent-orange mr-1.5">▌</span>
+          <span className="text-accent-cyan mr-1.5 signal-glow-cyan">▌</span>
           {universe}
         </span>
         <span className="text-text-dim font-normal tabular-nums">
@@ -99,7 +99,7 @@ export function BreadthBars({
   return (
     <div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-2 flex items-baseline gap-2">
-        {icon && <span className="text-accent-orange">{icon}</span>}
+        {icon && <span className="text-accent-cyan signal-glow-cyan">{icon}</span>}
         {title}
       </div>
       <div

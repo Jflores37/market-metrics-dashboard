@@ -97,7 +97,7 @@ function ScoreChip({ icon, name, score }: { icon: string; name: string; score: n
   const v = score == null ? 0 : Number(score);
   return (
     <div className="flex flex-col gap-1.5 text-center min-w-[80px]">
-      <div className="text-accent-orange text-sm">{icon}</div>
+      <div className="text-accent-cyan text-sm signal-glow-cyan">{icon}</div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">{name}</div>
       <div className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(score)}`}>{num(score, 0)}</div>
       <div className="h-1 bg-bg-panel rounded-full overflow-hidden">
@@ -273,7 +273,7 @@ export default function ShouldITrade() {
   return (
     <div className="space-y-3">
       <div className="flex items-baseline gap-3 flex-wrap pb-1">
-        <h1 className="font-mono text-xl font-bold tracking-tight">SHOULD I BE TRADING?</h1>
+        <h1 className="font-mono text-xl font-bold tracking-tight text-text-primary signal-glow-green">SHOULD I BE TRADING?</h1>
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
       </div>
 
@@ -317,7 +317,7 @@ export default function ShouldITrade() {
         <div className="terminal-card p-5">
           <div className="flex items-baseline justify-between mb-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-accent-orange">◐</span>
+              <span className="text-accent-cyan signal-glow-cyan">◐</span>
               <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Execution Window</span>
             </div>
             <span className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(ews)}`}>{num(ews, 0)}</span>
@@ -345,7 +345,7 @@ export default function ShouldITrade() {
       <div className="grid lg:grid-cols-2 gap-3">
         <div className="terminal-card p-5">
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="text-accent-orange">〰</span>
+            <span className="text-accent-cyan signal-glow-cyan">〰</span>
             <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Scoring Weights</span>
           </div>
           <div className="space-y-2.5">

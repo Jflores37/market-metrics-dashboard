@@ -79,9 +79,9 @@ function MoverTable({
   accentColor?: "green" | "red" | "neutral";
 }) {
   const iconColor =
-    accentColor === "green" ? "text-accent-green" :
-    accentColor === "red" ? "text-accent-red" :
-    "text-accent-orange";
+    accentColor === "green" ? "text-accent-green signal-glow-green" :
+    accentColor === "red" ? "text-accent-red signal-glow-red" :
+    "text-accent-cyan signal-glow-cyan";
 
   return (
     <div className="terminal-card p-4 flex flex-col">
@@ -155,7 +155,7 @@ function PremarketSection({ rows }: { rows: PremarketRow[] }) {
     <div className="terminal-card p-4 flex flex-col">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⊕</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⊕</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             Pre-market
           </span>
@@ -212,7 +212,7 @@ function PremarketSection({ rows }: { rows: PremarketRow[] }) {
 
       {cnbc.length > 0 && (
         <div className="mt-3 pt-3 border-t border-border-subtle">
-          <div className="font-mono text-2xs text-accent-blue mb-2 uppercase tracking-wider">
+          <div className="font-mono text-2xs text-accent-cyan mb-2 uppercase tracking-wider">
             CNBC Headlines
           </div>
           <div className="space-y-2 max-h-[150px] overflow-y-auto">
@@ -278,7 +278,7 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⊙</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⊙</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             Earnings · Yesterday + Today
           </span>
@@ -339,8 +339,8 @@ export default function Intraday() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">▶</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Intraday</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">▶</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Intraday</h1>
           <span className="text-xs text-text-dim mono">— Live market movers</span>
         </div>
         {data && (

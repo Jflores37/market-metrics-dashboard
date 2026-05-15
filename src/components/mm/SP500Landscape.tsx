@@ -120,7 +120,7 @@ export default function SP500Landscape() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◯</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◯</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             S&amp;P 500 Landscape · {data.length} stocks
           </span>

@@ -155,8 +155,8 @@ function SignalBalanceCard({ balance }: { balance: SignalBalance }) {
 
 function BottomLineCard({ narrative }: { narrative: string }) {
   return (
-    <div className="terminal-card p-5 border-l-4 border-l-accent-orange">
-      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+    <div className="terminal-card p-5 border-l-4 border-l-accent-amber">
+      <div className="font-mono text-2xs text-accent-amber uppercase tracking-widest mb-3 font-semibold signal-glow-amber">
         Bottom Line
       </div>
       <div className="text-sm text-text-secondary leading-relaxed font-mono">
@@ -169,7 +169,7 @@ function BottomLineCard({ narrative }: { narrative: string }) {
 function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
   return (
     <div className="terminal-card p-4">
-      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+      <div className="font-mono text-2xs text-accent-cyan uppercase tracking-widest mb-3 font-semibold">
         {title}
       </div>
       <div className="space-y-3">
@@ -198,8 +198,8 @@ export default function MacroMonitor() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">◉</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Macro Monitor</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">◉</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Macro Monitor</h1>
           <span className="text-xs text-text-dim mono">— Policy & market signals</span>
         </div>
       </header>

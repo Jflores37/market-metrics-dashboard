@@ -92,7 +92,7 @@ function SectorGrid() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◆</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◆</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Sector SPDRs</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
@@ -117,7 +117,7 @@ function SectorGrid() {
               <tr key={row.ticker} className={`border-b border-border-subtle/40 hover:bg-bg-hover ${row.is_benchmark ? "bg-bg-panel/40" : ""}`}>
                 <td className="py-1 pl-1">
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
-                  {row.is_benchmark && <span className="text-2xs text-accent-orange ml-1">·</span>}
+                  {row.is_benchmark && <span className="text-2xs text-accent-amber ml-1">·</span>}
                 </td>
                 <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
@@ -169,7 +169,7 @@ function WatchlistTable() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">★</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">★</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Watchlist</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
@@ -261,7 +261,7 @@ function StageAnalysisCard() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◫</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◫</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stage Analysis · Weinstein 10 substages</span>
         </div>
         <span className="font-mono text-2xs text-text-dim tabular-nums">{universe.toLocaleString()} stocks</span>
@@ -330,7 +330,7 @@ function StockbeeBreadthCard() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⊟</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⊟</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Breadth</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.observation_date}</span>
@@ -460,7 +460,7 @@ function StockbeeHistoryCharts() {
   return (
     <div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-2 flex items-baseline gap-2">
-        <span className="text-accent-orange">▦</span>
+        <span className="text-accent-cyan signal-glow-cyan">▦</span>
         Stockbee · 60-day history
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -490,7 +490,7 @@ function StockbeeMomentum50() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⚡</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⚡</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Momentum 50</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.observation_date} · {data.tickers.length} tickers</span>
@@ -512,8 +512,8 @@ export default function MarketMetrics() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">⊞</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Market Metrics</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">⊞</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Market Metrics</h1>
           <span className="text-xs text-text-dim mono">— Universe breadth · sectors · stages</span>
         </div>
       </header>
