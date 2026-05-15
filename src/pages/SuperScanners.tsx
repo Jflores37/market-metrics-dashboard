@@ -101,25 +101,26 @@ function useScannerSummary() {
 }
 
 /**
- * One batched fetch for ALL scanner results across all scanners. The
- * reference repo doesn't cap scanner row counts, so we explicitly
- * `.range()` past Supabase's 1000-row default response limit. 20k is
- * comfortable: 21 scanners * up to ~500 FinViz rows each ≈ 10k worst case.
+ * Per-scanner query. We deliberately do NOT batch all scanners into a
+ * single request: PostgREST's response is capped at 1,000 rows by
+ * default regardless of any client-side `.range()`, which means a
+ * unioned fetch silently drops scanners after the alphabetical cutoff.
+ * Twenty parallel queries deduplicate in React Query and avoid the cap.
  */
-function useAllScannerResults() {
+function useScannerResults(scannerId: string | undefined) {
   return useQuery({
-    queryKey: ["scanner-results-all"],
+    queryKey: ["scanner-results", scannerId],
     queryFn: async () => {
+      if (!scannerId) return [];
       const { data, error } = await supabase
         .from("scanner_results_latest_v")
         .select("*")
-        .order("scanner_id", { ascending: true })
-        .order("rank", { ascending: true, nullsFirst: false })
-        .range(0, 19999);
+        .eq("scanner_id", scannerId)
+        .order("rank", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as ScannerResult[];
     },
-    enabled: isSupabaseConfigured,
+    enabled: isSupabaseConfigured && !!scannerId,
   });
 }
 
@@ -179,15 +180,14 @@ const COL_SPECS: Record<ScannerColKey, ColumnSpec> = {
   mkt_cap:  { key: "mkt_cap",  label: "Mkt Cap", sortKey: "market_cap_millions", align: "right", cell: (r) => <span className="text-text-secondary tabular-nums text-2xs">{usdCompact(r.market_cap_millions, "millions")}</span> },
 };
 
-function ScannerCard({
-  scanner,
-  rows,
-}: {
-  scanner: ScannerSummary;
-  rows: ScannerResult[];
-}) {
+function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Each card fetches its own scanner_results slice — avoids PostgREST's
+  // 1k-row default response cap (would otherwise drop ~12 scanners
+  // alphabetically past julian_strongest).
+  const { data: rows = [], isLoading } = useScannerResults(scanner.scanner_id);
 
   // Per-scanner column spec drives the table layout. The reference repo
   // (pakkiraju/Market-Metrics-, finviz-elite branch) uses 9 distinct
@@ -220,10 +220,7 @@ function ScannerCard({
   async function refresh() {
     setRefreshing(true);
     try {
-      // Refresh the master query that feeds every card; React Query
-      // re-renders just this one because the rows for other scanners
-      // are referentially stable in the .filter() output.
-      await queryClient.invalidateQueries({ queryKey: ["scanner-results-all"] });
+      await queryClient.invalidateQueries({ queryKey: ["scanner-results", scanner.scanner_id] });
     } finally {
       setTimeout(() => setRefreshing(false), 300);
     }
@@ -298,7 +295,9 @@ function ScannerCard({
       )}
 
       {/* Body */}
-      {rows.length === 0 ? (
+      {isLoading ? (
+        <div className="font-mono text-2xs text-text-dim text-center py-6">Loading…</div>
+      ) : rows.length === 0 ? (
         <div className="font-mono text-2xs text-text-dim text-center py-6">No results</div>
       ) : (
         <div className="overflow-x-auto overflow-y-auto max-h-[360px] border border-border-subtle/60 rounded-[2px]">
@@ -471,21 +470,10 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
 // ===== Page =====
 export default function SuperScanners() {
   const { data: summary, isLoading: summaryLoading } = useScannerSummary();
-  const { data: allResults, isLoading: resultsLoading } = useAllScannerResults();
   const { data: earnings, isLoading: earningsLoading } = useEarningsThisWeek();
 
-  // Bucket results once: scanner_id → rows
-  const resultsByScanner = useMemo(() => {
-    const map = new Map<string, ScannerResult[]>();
-    for (const row of allResults ?? []) {
-      const existing = map.get(row.scanner_id);
-      if (existing) existing.push(row);
-      else map.set(row.scanner_id, [row]);
-    }
-    return map;
-  }, [allResults]);
-
-  // Stacked render order: by display_order across all groups
+  // display_order ascending — same ordering as the reference repo's
+  // layout.py rows (Minervini first, earnings last).
   const orderedScanners = useMemo(
     () => (summary ?? []).slice().sort((a, b) => a.display_order - b.display_order),
     [summary]
@@ -515,27 +503,22 @@ export default function SuperScanners() {
         </div>
       )}
 
-      {(summaryLoading || resultsLoading) && (
+      {summaryLoading && (
         <div className="terminal-card p-6">
           <div className="font-mono text-xs text-text-dim">Loading scanners…</div>
         </div>
       )}
 
-      {orderedScanners.map((s) => {
-        // Skip the earnings entry in scanner_summary_v — it has a different
-        // schema and is rendered by EarningsCard below.
-        if (s.scanner_id === "earnings_thisweek") return null;
-        return (
-          <ScannerCard
-            key={s.scanner_id}
-            scanner={s}
-            rows={resultsByScanner.get(s.scanner_id) ?? []}
-          />
-        );
-      })}
-
-      {/* Earnings card uses a different schema — render separately */}
-      {!earningsLoading && earnings && <EarningsCard rows={earnings} />}
+      {/* Reference repo arranges scanners in rows of 3-4 widgets
+          (THIRD_ROW_STYLE / QUARTER_ROW_STYLE in layout.py). The grid
+          collapses to 2 then 1 on narrower screens. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+        {orderedScanners.map((s) => {
+          if (s.scanner_id === "earnings_thisweek") return null;
+          return <ScannerCard key={s.scanner_id} scanner={s} />;
+        })}
+        {!earningsLoading && earnings && <EarningsCard rows={earnings} />}
+      </div>
     </div>
   );
 }
