@@ -1,13 +1,10 @@
-// fetch-finviz-scanners v7 — reference URLs used VERBATIM.
+// fetch-finviz-scanners v9 — reference filters, FinViz v=152 universal view.
 //
-// Each scanner fetches the EXACT FinViz Elite export URL from the
-// reference repo's src/constants.py FINVIZ_EXPORT_URLS
-// (pakkiraju/Market-Metrics-, finviz-elite) — same v=, same c=, same
-// f=, same o=. We append only &auth=<token>. CSV is parsed by HEADER
-// NAME so the per-view column layout doesn't matter. v6's mistake was
-// forcing v=152 with v=141-style column numbers — FinViz column
-// numbers mean different fields per view, so ATR/AvgVol/ROE silently
-// resolved to wrong/empty columns. Verbatim URLs fix that.
+// Same as v8 (verbatim reference filters, rewrite v=->v=152 + full c=),
+// PLUS: FinViz's v=152 "Average Volume" column is returned in THOUSANDS
+// while "Volume" is raw shares. We multiply avg_volume by 1000 so both
+// are in absolute shares (e.g. AMD avg vol 38958 -> 38,958,000). The
+// reference handles this in _format_screener_vol (layout.py:940).
 //
 // Only derived value: atr_pct = atr / price * 100.
 //
@@ -79,8 +76,8 @@ function findCol(headers: string[], cands: string[]): number {
   return -1;
 }
 
-// Reference FINVIZ_EXPORT_URLS — copied character-for-character from
-// src/constants.py (finviz-elite). DO NOT modify v=/c=/f=/o=.
+// Reference FINVIZ_EXPORT_URLS — verbatim from constants.py. We keep f=,
+// o=, ft= and rewrite v= + c= (see header note).
 const REF_URLS: Record<string, string> = {
   qulla_episodic:            "https://elite.finviz.com/export.ashx?v=141&f=ta_gap_u10,sh_relvol_o2,sh_price_o1,sh_avgvol_o1000&o=-change&c=1,47,61,62,63,64,65",
   qulla_ps_large:            "https://elite.finviz.com/export.ashx?v=141&f=cap_largeover,ta_perf_50to-4w&o=-change&c=1,47,61,62,63,64,65",
@@ -103,8 +100,13 @@ const REF_URLS: Record<string, string> = {
   up4_daily:                 "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d&o=-change&c=1,47,61,62,63,64,65",
 };
 
-function withAuth(url: string, auth: string): string {
-  return `${url}&auth=${auth}`;
+const FULL_V152_COLS =
+  "0,1,2,79,3,4,5,129,6,7,8,9,10,11,12,13,73,74,75,14,130,131,147,148,149,15,16,77,17,18,142,19,20,143,21,23,22,132,133,82,78,127,128,144,145,146,24,25,85,26,27,28,29,30,31,84,32,33,34,35,36,37,38,39,40,41,90,91,92,93,94,95,96,97,98,99,42,43,44,45,47,46,138,139,140,48,49,50,51,52,53,54,55,56,57,58,134,125,126,59,68,70,80,83,76,60,61,62,63,64,67,89,69,81,86,87,88,65,66,71,72,141,135,136,137,150,103,100,101,104,102,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,105";
+
+function buildUrl(refUrl: string, auth: string): string {
+  let u = refUrl.replace(/([?&])v=\d+/, "$1v=152");
+  u = u.replace(/([?&])c=[^&]*/, "$1c=" + FULL_V152_COLS);
+  return `${u}&auth=${auth}`;
 }
 
 type ParsedRow = {
@@ -115,7 +117,7 @@ type ParsedRow = {
 };
 
 async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
-  const url = withAuth(refUrl, auth);
+  const url = buildUrl(refUrl, auth);
   const attempts = [0, 3000, 6000]; let lastErr: Error | null = null;
   for (let i = 0; i < attempts.length; i++) {
     if (attempts[i] > 0) await sleep(attempts[i]);
@@ -146,11 +148,13 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
         const ticker = str(get(row, idx.ticker)) ?? "";
         if (!ticker || seen.has(ticker)) continue;
         seen.add(ticker);
+        const avRaw = int(get(row, idx.avgVolume));
         parsed.push({
           ticker,
           price: num(get(row, idx.price)),
           volume: int(get(row, idx.volume)),
-          avgVolume: int(get(row, idx.avgVolume)),
+          // FinViz v=152 returns Average Volume in THOUSANDS; Volume is raw.
+          avgVolume: avRaw == null ? null : avRaw * 1000,
           relVolume: num(get(row, idx.relVolume)),
           perfDay: pct(get(row, idx.change)),
           atr: num(get(row, idx.atr)),
