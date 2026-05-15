@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
-import { useSortable } from "@/lib/sortable";
+import { num, pct, usd, usdCompact, numCompact, colorClass } from "@/lib/format";
+import { useSortable, SortDir } from "@/lib/sortable";
 import CsvButton from "@/components/ui/CsvButton";
 import WlButton from "@/components/ui/WlButton";
 import SortableHeader from "@/components/ui/SortableHeader";
+import StageTagBadge from "@/components/scanners/StageTagBadge";
 import { TickerLink } from "@/components/TickerChartModal";
 
 // ===== Types =====
@@ -17,6 +18,10 @@ interface ScannerSummary {
   display_order: number;
   source: string | null;
   doc_url: string | null;
+  default_sort_column: string | null;
+  default_sort_direction: SortDir | null;
+  max_rows: number | null;
+  finviz_url: string | null;
   snapshot_date: string | null;
   row_count: number;
   fetched_at: string | null;
@@ -28,6 +33,10 @@ interface ScannerResult {
   group_tab: string;
   display_order: number;
   source: string | null;
+  default_sort_column: string | null;
+  default_sort_direction: SortDir | null;
+  max_rows: number | null;
+  finviz_url: string | null;
   snapshot_date: string;
   rank: number | null;
   ticker: string;
@@ -43,8 +52,14 @@ interface ScannerResult {
   perf_week: number | null;
   perf_month: number | null;
   perf_quarter: number | null;
+  perf_half: number | null;
   perf_year: number | null;
+  perf_ytd: number | null;
   rsi14: number | null;
+  atr: number | null;
+  atr_pct: number | null;
+  stage_tag: string | null;
+  dist_52w_high_pct: number | null;
   fetched_at: string;
 }
 
@@ -123,6 +138,29 @@ function useEarningsThisWeek() {
 }
 
 // ===== Scanner card =====
+// Columns whose default sort direction makes sense; everything else uses
+// the catalog's default_sort_direction. Bound to ScannerResult keys.
+const SORT_KEY_ALIASES: Record<string, keyof ScannerResult> = {
+  perf_day: "perf_day",
+  perf_week: "perf_week",
+  perf_month: "perf_month",
+  perf_quarter: "perf_quarter",
+  perf_half: "perf_half",
+  perf_year: "perf_year",
+  perf_ytd: "perf_ytd",
+  market_cap_millions: "market_cap_millions",
+  volume: "volume",
+  avg_volume: "avg_volume",
+  rel_volume: "rel_volume",
+  industry: "industry",
+  ticker: "ticker",
+  atr: "atr",
+  atr_pct: "atr_pct",
+  rsi14: "rsi14",
+  dist_52w_high_pct: "dist_52w_high_pct",
+  rank: "rank",
+};
+
 function ScannerCard({
   scanner,
   rows,
@@ -132,9 +170,14 @@ function ScannerCard({
 }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
-  const { sorted, sortKey, sortDir, toggle } = useSortable<ScannerResult>(rows, {
-    initialKey: "rank",
-    initialDir: "asc",
+  const initialKey =
+    (scanner.default_sort_column && SORT_KEY_ALIASES[scanner.default_sort_column]) ??
+    "rank";
+  const initialDir: SortDir = scanner.default_sort_direction ?? "asc";
+  const capped = scanner.max_rows != null ? rows.slice(0, scanner.max_rows) : rows;
+  const { sorted, sortKey, sortDir, toggle } = useSortable<ScannerResult>(capped, {
+    initialKey,
+    initialDir,
   });
 
   async function refresh() {
@@ -171,21 +214,28 @@ function ScannerCard({
             filename={`${scanner.scanner_id}-${scanner.snapshot_date ?? "latest"}.csv`}
             rows={sorted}
             columns={[
-              { header: "Rank",       value: (r) => r.rank },
-              { header: "Ticker",     value: (r) => r.ticker },
-              { header: "Company",    value: (r) => r.company ?? "" },
-              { header: "Sector",     value: (r) => r.sector ?? "" },
-              { header: "Industry",   value: (r) => r.industry ?? "" },
-              { header: "Price",      value: (r) => r.price },
-              { header: "MarketCapM", value: (r) => r.market_cap_millions },
-              { header: "Volume",     value: (r) => r.volume },
-              { header: "RelVolume",  value: (r) => r.rel_volume },
-              { header: "PerfDay",    value: (r) => r.perf_day },
-              { header: "PerfWeek",   value: (r) => r.perf_week },
-              { header: "PerfMonth",  value: (r) => r.perf_month },
-              { header: "PerfQuarter",value: (r) => r.perf_quarter },
-              { header: "PerfYear",   value: (r) => r.perf_year },
-              { header: "RSI14",      value: (r) => r.rsi14 },
+              { header: "Rank",        value: (r) => r.rank },
+              { header: "Ticker",      value: (r) => r.ticker },
+              { header: "Stage",       value: (r) => r.stage_tag ?? "" },
+              { header: "Company",     value: (r) => r.company ?? "" },
+              { header: "Sector",      value: (r) => r.sector ?? "" },
+              { header: "Industry",    value: (r) => r.industry ?? "" },
+              { header: "Price",       value: (r) => r.price },
+              { header: "MarketCapM",  value: (r) => r.market_cap_millions },
+              { header: "AvgVolume",   value: (r) => r.avg_volume },
+              { header: "Volume",      value: (r) => r.volume },
+              { header: "RelVolume",   value: (r) => r.rel_volume },
+              { header: "ATR",         value: (r) => r.atr },
+              { header: "ATRpct",      value: (r) => r.atr_pct },
+              { header: "PerfDay",     value: (r) => r.perf_day },
+              { header: "PerfWeek",    value: (r) => r.perf_week },
+              { header: "PerfMonth",   value: (r) => r.perf_month },
+              { header: "PerfQuarter", value: (r) => r.perf_quarter },
+              { header: "PerfHalf",    value: (r) => r.perf_half },
+              { header: "PerfYear",    value: (r) => r.perf_year },
+              { header: "PerfYtd",     value: (r) => r.perf_ytd },
+              { header: "RSI14",       value: (r) => r.rsi14 },
+              { header: "Dist52wHigh", value: (r) => r.dist_52w_high_pct },
             ]}
           />
           <WlButton
@@ -214,20 +264,27 @@ function ScannerCard({
       {rows.length === 0 ? (
         <div className="font-mono text-2xs text-text-dim text-center py-6">No results</div>
       ) : (
-        <div className="overflow-x-auto overflow-y-auto max-h-[320px] border border-border-subtle/60 rounded-[2px]">
-          <table className="w-full text-xs font-mono min-w-[800px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[360px] border border-border-subtle/60 rounded-[2px]">
+          <table className="w-full text-xs font-mono min-w-[1500px]">
             <thead className="border-b border-border-subtle bg-bg-card sticky top-0 z-10">
               <tr>
                 <SortableHeader<keyof ScannerResult> label="#" sortKey="rank" activeKey={sortKey} dir={sortDir} onSort={toggle} align="left" className="pl-2 w-10" />
                 <SortableHeader<keyof ScannerResult> label="Ticker" sortKey="ticker" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+                <th className="px-2 py-1 text-2xs uppercase tracking-widest text-text-dim font-normal text-left">Stage</th>
                 <SortableHeader<keyof ScannerResult> label="Sector" sortKey="sector" activeKey={sortKey} dir={sortDir} onSort={toggle} className="hidden md:table-cell" />
                 <SortableHeader<keyof ScannerResult> label="Price" sortKey="price" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Cap" sortKey="market_cap_millions" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="Avg Vol" sortKey="avg_volume" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="Rel V" sortKey="rel_volume" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="ATR" sortKey="atr" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="ATR %" sortKey="atr_pct" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Day %" sortKey="perf_day" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Wk %" sortKey="perf_week" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Mo %" sortKey="perf_month" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Qtr %" sortKey="perf_quarter" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="Half %" sortKey="perf_half" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="Yr %" sortKey="perf_year" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
+                <SortableHeader<keyof ScannerResult> label="YTD %" sortKey="perf_ytd" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" />
                 <SortableHeader<keyof ScannerResult> label="RSI" sortKey="rsi14" activeKey={sortKey} dir={sortDir} onSort={toggle} align="right" className="pr-2" />
               </tr>
             </thead>
@@ -246,6 +303,7 @@ function ScannerCard({
                       </div>
                     )}
                   </td>
+                  <td className="py-1 px-2"><StageTagBadge tag={row.stage_tag} /></td>
                   <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px] hidden md:table-cell">
                     {row.sector || "—"}
                   </td>
@@ -253,11 +311,17 @@ function ScannerCard({
                   <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">
                     {usdCompact(row.market_cap_millions, "millions")}
                   </td>
+                  <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{numCompact(row.avg_volume)}</td>
+                  <td className="py-1 text-text-secondary tabular-nums text-right">{num(row.rel_volume, 2)}</td>
+                  <td className="py-1 text-text-secondary tabular-nums text-right">{num(row.atr, 2)}</td>
+                  <td className="py-1 text-text-secondary tabular-nums text-right">{row.atr_pct == null ? "—" : `${num(row.atr_pct, 2)}%`}</td>
                   <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
                   <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
                   <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
                   <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_quarter)}`}>{pct(row.perf_quarter, 1)}</td>
+                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_half)}`}>{pct(row.perf_half, 1)}</td>
                   <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
+                  <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_ytd)}`}>{pct(row.perf_ytd, 1)}</td>
                   <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-2">{num(row.rsi14, 0)}</td>
                 </tr>
               ))}
@@ -426,7 +490,7 @@ export default function SuperScanners() {
           <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">
             Super Scanners
           </h1>
-          <span className="text-xs text-text-dim mono">— 19 curated screens · click any column to sort</span>
+          <span className="text-xs text-text-dim mono">— {summary?.length ?? "—"} curated screens · click any column to sort</span>
         </div>
         <div className="font-mono text-2xs text-text-dim">
           {totalCount} cards
