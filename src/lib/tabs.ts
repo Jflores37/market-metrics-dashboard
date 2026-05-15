@@ -17,7 +17,25 @@ export interface Tab {
   description: string;
 }
 
+// Display order matches the reference sidebar mock: decision tools
+// first, then macro context, then drill-down screens.
 export const TABS: readonly Tab[] = [
+  {
+    key: "should-i-trade",
+    path: "/should-i-trade",
+    label: "Should I Trade?",
+    shortLabel: "SIT",
+    glyph: "⚡",
+    description: "5-factor market quality score · execution window · swing/day mode",
+  },
+  {
+    key: "macro-monitor",
+    path: "/macro",
+    label: "Macro Monitor",
+    shortLabel: "Macro",
+    glyph: "◉",
+    description: "12 FRED KPIs · fiscal block · hawkish/dovish balance",
+  },
   {
     key: "market-metrics",
     path: "/",
@@ -37,25 +55,9 @@ export const TABS: readonly Tab[] = [
   {
     key: "intraday",
     path: "/intraday",
-    label: "Intraday",
+    label: "Intraday Inspector",
     shortLabel: "Intraday",
     glyph: "▶",
     description: "Live tape · top gainers · top losers · stocks in play · pre-market",
-  },
-  {
-    key: "macro-monitor",
-    path: "/macro",
-    label: "Macro Monitor",
-    shortLabel: "Macro",
-    glyph: "◉",
-    description: "12 FRED KPIs · fiscal block · hawkish/dovish balance",
-  },
-  {
-    key: "should-i-trade",
-    path: "/should-i-trade",
-    label: "Should I Trade",
-    shortLabel: "SIT",
-    glyph: "⚡",
-    description: "5-factor market quality score · execution window · swing/day mode",
   },
 ] as const;

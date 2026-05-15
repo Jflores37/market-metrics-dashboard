@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
+import SidebarStrip from "@/components/layout/SidebarStrip";
 import TopBar from "@/components/layout/TopBar";
 import TickerTape from "@/components/layout/TickerTape";
 import TerminalFrame from "@/components/layout/TerminalFrame";
@@ -10,14 +11,18 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary md:flex">
-      <div className={!sidebarOpen ? "md:hidden" : ""}>
-        <Sidebar />
-      </div>
+      {/*
+        Desktop: full sidebar OR thin collapsed strip.
+        Mobile: full sidebar always (renders as a horizontal pill row at the top).
+      */}
+      {sidebarOpen ? (
+        <Sidebar onCollapse={() => setSidebarOpen(false)} />
+      ) : (
+        <SidebarStrip onExpand={() => setSidebarOpen(true)} />
+      )}
+
       <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        />
+        <TopBar />
         <TickerTape />
         <TerminalFrame>
           <Outlet />

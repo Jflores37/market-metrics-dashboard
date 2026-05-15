@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-export default function TopBar({
-  sidebarOpen,
-  onToggleSidebar,
-}: {
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
-}) {
+/**
+ * Top status bar: date/time in the center, refresh + settings stub on
+ * the right. The hamburger that used to live here is gone — the
+ * sidebar manages its own open/closed state via the collapse chevron
+ * inside it and the expand chevron on the thin collapsed-strip.
+ */
+export default function TopBar() {
   const queryClient = useQueryClient();
   const [now, setNow] = useState(() => new Date());
   const [refreshing, setRefreshing] = useState(false);
@@ -33,25 +33,15 @@ export default function TopBar({
     try {
       await queryClient.invalidateQueries();
     } finally {
-      // small min-delay so the spinner is visible even on a fast network
       setTimeout(() => setRefreshing(false), 300);
     }
   }
 
   return (
     <div className="px-3 md:px-5 py-2 border-b border-border-subtle bg-bg-card flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={onToggleSidebar}
-          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-          className="hidden md:flex items-center justify-center w-7 h-7 rounded-[2px] text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors"
-        >
-          {sidebarOpen ? "✕" : "☰"}
-        </button>
-        <span className="text-accent-cyan font-mono font-bold tracking-tight text-base md:hidden signal-glow-cyan">
-          Pulse
-        </span>
-      </div>
+      <span className="text-accent-cyan font-mono font-bold tracking-tight text-base md:hidden signal-glow-cyan">
+        Pulse
+      </span>
       <div className="font-mono text-xs text-accent-green flex-1 text-center hidden sm:block tabular-nums uppercase tracking-wider signal-glow-green">
         {date} · {time}
       </div>
