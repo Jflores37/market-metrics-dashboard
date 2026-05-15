@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { dateLong } from "@/lib/format";
 import Sparkline from "@/components/macro/Sparkline";
 import SignalDonut from "@/components/macro/SignalDonut";
 
@@ -67,130 +66,126 @@ function useMacroDashboard() {
   });
 }
 
-const SIGNAL_TEXT_COLOR: Record<Signal, string> = {
-  hawkish: "text-signal-hawkish",
-  dovish: "text-signal-dovish",
-  neutral: "text-signal-neutral",
-  tightening: "text-signal-tightening",
+const SIGNAL_TEXT: Record<Signal, string> = {
+  hawkish: "text-accent-red",
+  dovish: "text-accent-green",
+  neutral: "text-text-primary",
+  tightening: "text-accent-yellow",
 };
 
-const SIGNAL_DOT_COLOR: Record<Signal, string> = {
-  hawkish: "bg-signal-hawkish",
-  dovish: "bg-signal-dovish",
-  neutral: "bg-signal-neutral",
-  tightening: "bg-signal-tightening",
+const SIGNAL_DOT_SQ: Record<Signal, string> = {
+  hawkish: "bg-accent-red",
+  dovish: "bg-accent-green",
+  neutral: "bg-text-dim",
+  tightening: "bg-accent-yellow",
 };
 
-function TrendArrow({ trend }: { trend: "up" | "down" | "flat" }) {
-  if (trend === "up") return <span className="text-accent-green text-xs">▲</span>;
-  if (trend === "down") return <span className="text-accent-red text-xs">▼</span>;
-  return <span className="text-text-dim text-xs">▬</span>;
+function formatObsDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso + (iso.length === 10 ? "T00:00:00Z" : ""));
+    if (isNaN(d.getTime())) return iso;
+    // Heuristic: if the date is the 1st of a month, render as month+year (FRED monthly)
+    if (d.getUTCDate() === 1) {
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    return iso.slice(0, 10);
+  } catch {
+    return iso;
+  }
 }
 
 function KpiCard({ kpi }: { kpi: Kpi }) {
   return (
-    <div className="terminal-card p-3 flex flex-col gap-2 min-h-[140px]">
-      <div className="flex items-baseline justify-between gap-2">
-        <div className="font-mono text-2xs text-text-dim uppercase tracking-wider truncate">
-          {kpi.short}
-        </div>
-        <span
-          className={`flex items-center gap-1.5 text-2xs mono uppercase tracking-wider ${SIGNAL_TEXT_COLOR[kpi.signal]}`}
-        >
-          <span
-            className={`inline-block w-1.5 h-1.5 rounded-full ${SIGNAL_DOT_COLOR[kpi.signal]}`}
-          />
-          {kpi.signal}
-        </span>
+    <div className="terminal-card p-3 flex flex-col gap-1.5 min-h-[115px]">
+      <div className="font-mono text-2xs text-text-dim uppercase tracking-wider truncate">
+        {kpi.short}
       </div>
-
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="font-mono text-base sm:text-lg font-semibold text-text-primary tabular-nums">
-          {kpi.display}
-        </span>
-        <TrendArrow trend={kpi.trend} />
+      <div className={`font-mono text-base font-semibold tabular-nums ${SIGNAL_TEXT[kpi.signal] ?? "text-text-primary"}`}>
+        {kpi.display}
       </div>
-
-      <div className="flex-1 -mx-1">
+      <div className="text-2xs text-text-dim mono truncate">
+        {formatObsDate(kpi.observation_date)}
+      </div>
+      <div className="flex-1 min-h-[22px] -mx-1">
         <Sparkline points={kpi.sparkline} signal={kpi.signal} />
-      </div>
-
-      <div className="text-2xs text-text-dim mono truncate">{kpi.source}</div>
-    </div>
-  );
-}
-
-function FiscalTable({ rows }: { rows: FiscalRow[] }) {
-  return (
-    <div className="terminal-card p-5 space-y-3">
-      <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-        Fiscal block
-      </div>
-      <div className="divide-y divide-border-subtle">
-        {rows.map((row) => (
-          <div
-            key={row.row_id}
-            className="flex items-baseline justify-between gap-3 py-2.5"
-          >
-            <div className="flex flex-col">
-              <span className="text-sm text-text-primary">{row.label}</span>
-              <span className="text-2xs text-text-dim mono">
-                {row.fred_id} ·{" "}
-                {row.observation_date ? dateLong(row.observation_date) : "—"}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <TrendArrow trend={row.trend} />
-              <span className="font-mono text-sm font-semibold text-text-primary tabular-nums">
-                {row.display}
-              </span>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
 function SignalBalanceCard({ balance }: { balance: SignalBalance }) {
+  const dominantClass =
+    balance.dominant_label.toLowerCase().includes("hawkish") ? "text-accent-red" :
+    balance.dominant_label.toLowerCase().includes("dovish") ? "text-accent-green" :
+    balance.dominant_label.toLowerCase().includes("tightening") ? "text-accent-yellow" :
+    "text-text-secondary";
+
   return (
-    <div className="terminal-card p-5 space-y-4">
-      <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-        Signal balance
+    <div className="terminal-card p-5 flex flex-col">
+      <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-1">
+        Signal Balance
+      </div>
+      <div className={`font-mono text-base font-bold mb-4 uppercase tracking-wider ${dominantClass}`}>
+        {balance.dominant_label}
       </div>
 
-      <div className="flex items-center gap-5 flex-wrap justify-between">
+      <div className="flex items-center gap-5 flex-wrap justify-around flex-1">
         <div className="shrink-0">
-          <SignalDonut counts={balance.counts} size={150} />
+          <SignalDonut counts={balance.counts} dominantLabel={balance.dominant_label} size={180} />
         </div>
 
-        <div className="flex flex-col gap-1.5 min-w-[140px] flex-1">
-          {(["hawkish", "dovish", "neutral", "tightening"] as const).map((sig) => (
-            <div
-              key={sig}
-              className="flex items-center justify-between gap-2 text-sm"
-            >
-              <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${SIGNAL_DOT_COLOR[sig]}`}
-                />
-                <span className="text-text-secondary">{sig}</span>
+        <div className="flex flex-col gap-2.5 min-w-[140px]">
+          {(["hawkish", "neutral", "dovish", "tightening"] as const).map((sig) => (
+            <div key={sig} className="flex items-center gap-2 text-sm">
+              <span className={`inline-block w-2.5 h-2.5 rounded-sm shrink-0 ${SIGNAL_DOT_SQ[sig]}`} />
+              <span className="font-mono text-xs uppercase tracking-wider text-text-secondary capitalize">
+                {sig}
               </span>
-              <span className="font-mono font-semibold tabular-nums text-text-primary">
-                {balance[sig]}
+              <span className="font-mono text-xs text-text-dim tabular-nums">
+                ({balance[sig]})
               </span>
             </div>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="pt-3 border-t border-border-subtle">
-        <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-1.5">
-          Dominant
-        </div>
-        <div className="font-mono text-lg font-semibold text-accent-orange">
-          {balance.dominant_label}
-        </div>
+function BottomLineCard({ narrative }: { narrative: string }) {
+  return (
+    <div className="terminal-card p-5 border-l-4 border-l-accent-orange">
+      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+        Bottom Line
+      </div>
+      <div className="text-sm text-text-secondary leading-relaxed font-mono">
+        {narrative}
+      </div>
+    </div>
+  );
+}
+
+function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
+  return (
+    <div className="terminal-card p-4">
+      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+        {title}
+      </div>
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div
+            key={row.row_id}
+            className="flex items-baseline justify-between gap-2 border-b border-border-subtle pb-2 last:border-b-0 last:pb-0"
+          >
+            <span className="text-xs text-text-secondary mono">
+              {row.label}
+            </span>
+            <span className="font-mono text-sm font-semibold text-text-primary tabular-nums shrink-0">
+              {row.display}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -200,12 +195,13 @@ export default function MacroMonitor() {
   const { data, isLoading, error } = useMacroDashboard();
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-mono text-xl font-bold tracking-tight">Macro Monitor</h1>
-        <p className="text-sm text-text-secondary mt-1">
-          12 FRED KPIs · fiscal block · hawkish/dovish balance
-        </p>
+    <div className="space-y-4">
+      <header className="flex items-baseline justify-between gap-4 flex-wrap">
+        <div className="flex items-baseline gap-2">
+          <span className="text-accent-blue text-base">◉</span>
+          <h1 className="font-mono text-base font-semibold text-accent-blue">Macro Monitor</h1>
+          <span className="text-xs text-text-dim mono">— Policy & market signals</span>
+        </div>
       </header>
 
       {!isSupabaseConfigured && (
@@ -216,9 +212,7 @@ export default function MacroMonitor() {
 
       {isLoading && (
         <div className="terminal-card p-6">
-          <div className="font-mono text-xs text-text-dim">
-            Loading macro data…
-          </div>
+          <div className="font-mono text-xs text-text-dim">Loading macro data…</div>
         </div>
       )}
 
@@ -230,23 +224,28 @@ export default function MacroMonitor() {
 
       {data && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {/* 12 KPI cards — dense horizontal grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-12 gap-2.5">
             {data.kpis.map((kpi) => (
               <KpiCard key={kpi.metric_id} kpi={kpi} />
             ))}
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-6">
-            <FiscalTable rows={data.fiscal} />
+          {/* Signal Balance (1/3) + Bottom Line (2/3) */}
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
             <SignalBalanceCard balance={data.signal_balance} />
+            <BottomLineCard narrative={data.signal_balance.narrative} />
           </div>
 
-          <div className="terminal-card p-5 space-y-2">
-            <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-              Bottom-line narrative
+          {/* Fiscal section */}
+          <div>
+            <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-3 mt-1">
+              U.S. Fiscal Snapshot (Latest Available)
             </div>
-            <div className="text-sm text-text-secondary leading-relaxed font-mono">
-              {data.signal_balance.narrative}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <FiscalCard title="Debt & Balance" rows={data.fiscal.slice(0, 2)} />
+              <FiscalCard title="Revenue & Spending" rows={data.fiscal.slice(2, 4)} />
+              <FiscalCard title="Interest & Ratios" rows={data.fiscal.slice(4, 6)} />
             </div>
           </div>
         </>
