@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  LineChart, Line, BarChart, Bar, Cell, ReferenceLine, Tooltip, ResponsiveContainer,
+  LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
@@ -17,7 +17,12 @@ import { TickerLink } from "@/components/TickerChartModal";
 import CsvButton from "@/components/ui/CsvButton";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
-import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
+import {
+  LeadingIndustriesTable,
+  ThematicsByThemeTable,
+  ThematicsBySectorTable,
+  ThematicsTopMovers,
+} from "@/components/mm/IndustryThemeBlocks";
 import RRGScatter from "@/components/mm/RRGScatter";
 import SP500Landscape from "@/components/mm/SP500Landscape";
 
@@ -484,6 +489,53 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
   );
 }
 
+function Sp500HistoryChart() {
+  const { data } = useStockbeeHistory();
+  if (!data || data.length === 0) return null;
+  const points = data.map((d) => ({ date: d.observation_date, value: Number(d.sp500_level) }));
+  const first = points[0]?.value ?? 0;
+  const last = points[points.length - 1]?.value ?? 0;
+  const change = last - first;
+  const changePct = first ? (change / first) * 100 : 0;
+  const isUp = change >= 0;
+  const lineColor = isUp ? chartColors.green : chartColors.red;
+
+  return (
+    <div className="terminal-card p-4">
+      <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
+        <div className="flex items-baseline gap-2">
+          <span className="text-accent-cyan text-sm signal-glow-cyan">📈</span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
+            S&amp;P 500 · 60-day
+          </span>
+        </div>
+        <div className="flex items-baseline gap-3 font-mono text-2xs">
+          <span className="text-text-primary tabular-nums">{num(last, 2)}</span>
+          <span className={`tabular-nums ${isUp ? "text-accent-green" : "text-accent-red"}`}>
+            {isUp ? "+" : ""}{num(change, 2)} ({isUp ? "+" : ""}{num(changePct, 2)}%)
+          </span>
+        </div>
+      </div>
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={points} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+            <XAxis dataKey="date" hide />
+            <YAxis domain={["auto", "auto"]} hide />
+            <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
+            <Tooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
+              cursor={tooltipCursor}
+              formatter={(v: any) => [num(v, 2), "SPX"]}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function StockbeeHistoryCharts() {
   const { data } = useStockbeeHistory();
   if (!data || data.length === 0) return null;
@@ -562,10 +614,15 @@ export default function MarketMetrics() {
       <WatchlistTable />
 
       <StockbeeBreadthCard />
+      <Sp500HistoryChart />
       <StockbeeHistoryCharts />
       <StockbeeMomentum50 />
 
-      <IndustryThemeBlocks />
+      <LeadingIndustriesTable />
+      <ThematicsByThemeTable />
+      <ThematicsBySectorTable />
+      <ThematicsTopMovers />
+
       <RRGScatter />
       <SP500Landscape />
     </div>

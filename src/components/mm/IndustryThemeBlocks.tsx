@@ -59,7 +59,7 @@ interface TopMoverRow {
 }
 
 // ===== Leading Industries =====
-function LeadingIndustriesTable() {
+export function LeadingIndustriesTable() {
   const { data } = useQuery({
     queryKey: ["mm-leading-industries"],
     queryFn: async () => {
@@ -134,7 +134,7 @@ function LeadingIndustriesTable() {
 }
 
 // ===== Thematics by Theme =====
-function ThematicsByThemeTable() {
+export function ThematicsByThemeTable() {
   const { data } = useQuery({
     queryKey: ["mm-thematics-theme"],
     queryFn: async () => {
@@ -208,7 +208,7 @@ function ThematicsByThemeTable() {
 }
 
 // ===== Thematics by Sector =====
-function ThematicsBySectorTable() {
+export function ThematicsBySectorTable() {
   const { data } = useQuery({
     queryKey: ["mm-thematics-sector"],
     queryFn: async () => {
@@ -328,7 +328,7 @@ function TopMoverTable({
   );
 }
 
-function ThematicsTopMovers() {
+export function ThematicsTopMovers() {
   const { data } = useQuery({
     queryKey: ["mm-top-movers"],
     queryFn: async () => {
