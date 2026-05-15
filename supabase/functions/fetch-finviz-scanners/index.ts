@@ -1,21 +1,18 @@
-// fetch-finviz-scanners v6 — FinViz-Elite parity, universal-column view.
+// fetch-finviz-scanners v7 — reference URLs used VERBATIM.
 //
-// Each scanner uses its VERBATIM filter set from the reference repo's
-// src/constants.py FINVIZ_EXPORT_URLS (pakkiraju/Market-Metrics-,
-// finviz-elite). We override the per-URL `v=` and `c=` parameters to
-// always pull v=152 (FinViz's universal column registry) over the full
-// 1–79 range, then parse by CSV HEADER NAME so column-position drift
-// across views doesn't matter. The reference URLs use mixed views
-// (v=141/161/131/111) with view-specific column numbering — only by
-// normalizing to v=152 do ROE / Profit Margin / Short Float consistently
-// resolve to the same fields across scanners.
+// Each scanner fetches the EXACT FinViz Elite export URL from the
+// reference repo's src/constants.py FINVIZ_EXPORT_URLS
+// (pakkiraju/Market-Metrics-, finviz-elite) — same v=, same c=, same
+// f=, same o=. We append only &auth=<token>. CSV is parsed by HEADER
+// NAME so the per-view column layout doesn't matter. v6's mistake was
+// forcing v=152 with v=141-style column numbers — FinViz column
+// numbers mean different fields per view, so ATR/AvgVol/ROE silently
+// resolved to wrong/empty columns. Verbatim URLs fix that.
 //
-// Only derived value: atr_pct = atr / price * 100. Everything else is
-// stored as FinViz returned it.
+// Only derived value: atr_pct = atr / price * 100.
 //
-// Dispatch: ?group=trend|perf|perf2|special|all   (default: trend)
-//           ?only=<scanner_id>                    (single scanner debug)
-//           ?earnings=1                           (refresh earnings calendar)
+// Dispatch: ?group=trend|perf|perf2|special|all (default trend)
+//           ?only=<scanner_id>   ?earnings=1
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -33,7 +30,6 @@ async function getSecret(key: string): Promise<string> {
   return data.value;
 }
 
-// ----- CSV + numeric parsing --------------------------------------------------
 function parseCSV(text: string): string[][] {
   const rows: string[][] = []; let cur: string[] = []; let field = ""; let i = 0; let inQ = false;
   while (i < text.length) {
@@ -63,7 +59,6 @@ function pct(s?: string): number | null {
   if (t === "" || t === "-") return null;
   const n = parseFloat(t.replace(/%$/, "")); return Number.isFinite(n) ? n : null;
 }
-
 function num(s?: string): number | null {
   if (!s) return null; const t = s.trim();
   if (t === "" || t === "-") return null;
@@ -71,9 +66,7 @@ function num(s?: string): number | null {
   if (!m) { const n = parseFloat(t.replace(/,/g, "")); return Number.isFinite(n) ? n : null; }
   let v = parseFloat(m[1]); if (!Number.isFinite(v)) return null;
   const suf = (m[2] ?? "").toUpperCase();
-  if (suf === "K") v *= 1e3;
-  else if (suf === "M") v *= 1e6;
-  else if (suf === "B") v *= 1e9;
+  if (suf === "K") v *= 1e3; else if (suf === "M") v *= 1e6; else if (suf === "B") v *= 1e9;
   return v;
 }
 function int(s?: string): number | null { const n = num(s); return n == null ? null : Math.round(n); }
@@ -86,99 +79,65 @@ function findCol(headers: string[], cands: string[]): number {
   return -1;
 }
 
-// ----- Reference FinViz filter strings (verbatim from constants.py) ----------
-// We use ONLY the `f=` parameter from each reference URL. Other params
-// (v=, c=, o=, ft=) are stripped and replaced with our universal
-// v=152 + wide c= range. Sort defaults are applied client-side in the
-// React layer (matches reference layout.py:2773 "change DESC").
-const REF_FILTERS: Record<string, string> = {
-  qulla_episodic:            "ta_gap_u10,sh_relvol_o2,sh_price_o1,sh_avgvol_o1000",
-  qulla_breakouts:           "sh_avgvol_o1000,sh_price_o1,ta_highlow52w_0to25-bhx,ta_perf_30to-4w,tad_0_close::close:d|abvpct::10:|sma:20:sma:d",
-  qulla_ps_large:            "cap_largeover,ta_perf_50to-4w",
-  qulla_ps_small:            "cap_to9,ta_perf_300to-4w,ta_perf2_100to-1w",
-  minervini:                 "sh_avgvol_o1000,sh_price_o1,ta_sma200_pa,tad_0_sma:150:sma:d|abv:::1|close::close:d,tad_1_sma:200:sma:d|abv:::1|close::close:d,tad_2_sma:200:sma:d|abv:::1|sma:150:sma:d,tad_3_sma:50:sma:d|abv:::|sma:150:sma:d,tad_4_sma:50:sma:d|abv:::|sma:200:sma:d,tad_5_sma:50:sma:d|abv:::1|close::close:d,tad_6_close::close:d|abvpct:30::|hilo:52:low:d,tad_7_close::close:d|blwpct::25:|hilo:52:high:d,tad_8_rsi:14:rsi:d|abveq:::|value:::70",
-  oneil:                     "fa_epsyoy_o25,fa_epsyoy1_o25,fa_epsyoyttm_pos,fa_netmargin_pos,fa_roe_pos",
-  jeff_sun_canslim:          "cap_midover,fa_salesqoq_high,fa_salesyoyttm_high,sh_avgvol_500to,sh_curvol_o2000,sh_insttrans_pos,ta_highlow20d_a5h,ta_highlow50d_a5h,ta_volatility_wo4",
-  jeff_sun_high_adr:         "cap_midover,sh_avgvol_500to,sh_curvol_o2000,sh_relvol_o2,ta_volatility_wo10",
-  jeff_sun_extended_bases:   "cap_smallover,sh_avgvol_o1000,sh_curvol_o1000,sh_insttrans_pos,sh_price_o1,ta_alltime_b70h,ta_highlow50d_a15h,ta_highlow52w_b30h,ta_perf_ytddown,ta_sma200_-20to20-a,ta_volatility_wo4",
-  jeff_sun_1w20:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_1w20o,ta_volatility_wo4",
-  jeff_sun_4w30:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w30o,ta_volatility_mo5",
-  jeff_sun_4w50:             "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w50o,ta_volatility_mo5",
-  jeff_sun_13w50:            "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_13w50o,ta_volatility_mo5",
-  jeff_sun_26w100:           "cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_26w100o,ta_volatility_mo5",
-  jeff_sun_ipo_thisweek:     "cap_midover,fa_epsyoy1_pos,ipodate_prevyear,sh_avgvol_o1000",
-  jeff_sun_high_short_float: "cap_smallover,ind_stocksonly,sh_avgvol_o1000,sh_float_u100,sh_short_o30",
-  jeff_sun_liquid_etfs:      "ind_exchangetradedfund,sh_avgvol_o1000,ta_volatility_wo3",
-  julian_komar_strongest:    "cap_smallover,ind_stocksonly,sh_avgvol_o100,sh_price_o7,ta_highlow52w_a70h,ta_sma50_pa",
-  up4_daily:                 "sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d",
+// Reference FINVIZ_EXPORT_URLS — copied character-for-character from
+// src/constants.py (finviz-elite). DO NOT modify v=/c=/f=/o=.
+const REF_URLS: Record<string, string> = {
+  qulla_episodic:            "https://elite.finviz.com/export.ashx?v=141&f=ta_gap_u10,sh_relvol_o2,sh_price_o1,sh_avgvol_o1000&o=-change&c=1,47,61,62,63,64,65",
+  qulla_ps_large:            "https://elite.finviz.com/export.ashx?v=141&f=cap_largeover,ta_perf_50to-4w&o=-change&c=1,47,61,62,63,64,65",
+  qulla_ps_small:            "https://elite.finviz.com/export.ashx?v=141&f=cap_to9,ta_perf_300to-4w,ta_perf2_100to-1w&ft=4&o=-change&c=1,47,61,62,63,64,65",
+  qulla_breakouts:           "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_highlow52w_0to25-bhx,ta_perf_30to-4w,tad_0_close::close:d|abvpct::10:|sma:20:sma:d&o=-change&c=1,47,61,62,63,64,65",
+  minervini:                 "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_sma200_pa,tad_0_sma:150:sma:d|abv:::1|close::close:d,tad_1_sma:200:sma:d|abv:::1|close::close:d,tad_2_sma:200:sma:d|abv:::1|sma:150:sma:d,tad_3_sma:50:sma:d|abv:::|sma:150:sma:d,tad_4_sma:50:sma:d|abv:::|sma:200:sma:d,tad_5_sma:50:sma:d|abv:::1|close::close:d,tad_6_close::close:d|abvpct:30::|hilo:52:low:d,tad_7_close::close:d|blwpct::25:|hilo:52:high:d,tad_8_rsi:14:rsi:d|abveq:::|value:::70&o=-change&c=1,47,61,62,63,64,65",
+  oneil:                     "https://elite.finviz.com/export.ashx?v=161&f=fa_epsyoy_o25,fa_epsyoy1_o25,fa_epsyoyttm_pos,fa_netmargin_pos,fa_roe_pos&o=-change&ft=2&c=1,32,40,47,61,62,63,64,65",
+  jeff_sun_canslim:          "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,fa_salesqoq_high,fa_salesyoyttm_high,sh_avgvol_500to,sh_curvol_o2000,sh_insttrans_pos,ta_highlow20d_a5h,ta_highlow50d_a5h,ta_volatility_wo4&ft=4&o=-change&c=1,47,61,62,63,64,65",
+  jeff_sun_high_adr:         "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,sh_avgvol_500to,sh_curvol_o2000,sh_relvol_o2,ta_volatility_wo10&ft=4&o=-change&c=1,47,61,62,63,64,65",
+  jeff_sun_extended_bases:   "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o1000,sh_curvol_o1000,sh_insttrans_pos,sh_price_o1,ta_alltime_b70h,ta_highlow50d_a15h,ta_highlow52w_b30h,ta_perf_ytddown,ta_sma200_-20to20-a,ta_volatility_wo4&ft=4&o=-change&c=1,47,61,62,63,64,65",
+  jeff_sun_1w20:             "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_1w20o,ta_volatility_wo4&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
+  jeff_sun_4w30:             "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w30o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
+  jeff_sun_4w50:             "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_4w50o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
+  jeff_sun_13w50:            "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_13w50o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
+  jeff_sun_26w100:           "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,sh_avgvol_o300,sh_curvol_o100,ta_perf_26w100o,ta_volatility_mo5&ft=4&o=-marketcap&c=1,47,61,62,63,64,65",
+  jeff_sun_ipo_thisweek:     "https://elite.finviz.com/export.ashx?v=141&f=cap_midover,fa_epsyoy1_pos,ipodate_prevyear,sh_avgvol_o1000&ft=4&o=industry&c=1,47,61,62,63,64,65",
+  jeff_sun_high_short_float: "https://elite.finviz.com/export.ashx?v=131&f=cap_smallover,ind_stocksonly,sh_avgvol_o1000,sh_float_u100,sh_short_o30&ft=4&c=1,32,47,61,62,63,64,65",
+  jeff_sun_liquid_etfs:      "https://elite.finviz.com/export.ashx?v=111&f=ind_exchangetradedfund,sh_avgvol_o1000,ta_volatility_wo3&ft=4&o=-volume&c=1,47,61,62,63,64,65",
+  julian_komar_strongest:    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,ind_stocksonly,sh_avgvol_o100,sh_price_o7,ta_highlow52w_a70h,ta_sma50_pa&ft=4&o=-low52w&c=1,47,61,62,63,64,65",
+  up4_daily:                 "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d&o=-change&c=1,47,61,62,63,64,65",
 };
 
-// Wide column set across v=152's column registry. Covers everything the
-// dashboard renders today plus ROE (32), Profit Margin (40), Short
-// Float (67), Earnings Date (67/73 — view-dependent).
-const UNION_COLS =
-  "1,2,3,4,6,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,50,51,52,55,56,61,62,63,64,65,67,68,73,79";
-
-function buildExportUrl(filters: string, auth: string): string {
-  return `https://elite.finviz.com/export.ashx?v=152&f=${filters}&ft=4&c=${UNION_COLS}&auth=${auth}`;
+function withAuth(url: string, auth: string): string {
+  return `${url}&auth=${auth}`;
 }
 
-// ----- Row parsing -----------------------------------------------------------
 type ParsedRow = {
-  ticker: string; company: string | null; sector: string | null; industry: string | null;
-  price: number | null; marketCapM: number | null; volume: number | null;
+  ticker: string; price: number | null; volume: number | null;
   avgVolume: number | null; relVolume: number | null;
-  perfDay: number | null; perfWeek: number | null; perfMonth: number | null;
-  perfQuarter: number | null; perfHalf: number | null; perfYear: number | null; perfYtd: number | null;
-  atr: number | null; rsi14: number | null;
-  high52wPct: number | null; low52wPct: number | null;
+  perfDay: number | null; atr: number | null;
   roe: number | null; netMargin: number | null; shortFloat: number | null;
 };
 
-async function finvizPull(filters: string, auth: string): Promise<ParsedRow[]> {
-  const url = buildExportUrl(filters, auth);
+async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
+  const url = withAuth(refUrl, auth);
   const attempts = [0, 3000, 6000]; let lastErr: Error | null = null;
   for (let i = 0; i < attempts.length; i++) {
     if (attempts[i] > 0) await sleep(attempts[i]);
     try {
       const res = await fetch(url);
-      if (res.status === 429) {
-        await res.body?.cancel();
-        lastErr = new Error(`Finviz 429 attempt ${i + 1}`);
-        continue;
-      }
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`Finviz ${res.status}: ${body.slice(0, 200)}`);
-      }
+      if (res.status === 429) { await res.body?.cancel(); lastErr = new Error(`Finviz 429 #${i + 1}`); continue; }
+      if (!res.ok) { const b = await res.text(); throw new Error(`Finviz ${res.status}: ${b.slice(0, 200)}`); }
       const text = await res.text();
       const rows = parseCSV(text);
       if (rows.length < 1) throw new Error("Empty CSV");
       const headers = rows[0].map((h) => h.trim());
       const idx = {
-        ticker:      findCol(headers, ["Ticker"]),
-        company:     findCol(headers, ["Company"]),
-        sector:      findCol(headers, ["Sector"]),
-        industry:    findCol(headers, ["Industry"]),
-        marketCap:   findCol(headers, ["Market Cap"]),
-        price:       findCol(headers, ["Price"]),
-        change:      findCol(headers, ["Change"]),
-        perfWeek:    findCol(headers, ["Performance (Week)"]),
-        perfMonth:   findCol(headers, ["Performance (Month)"]),
-        perfQuarter: findCol(headers, ["Performance (Quarter)"]),
-        perfHalf:    findCol(headers, ["Performance (Half Year)"]),
-        perfYear:    findCol(headers, ["Performance (Year)"]),
-        perfYtd:     findCol(headers, ["Performance (YTD)"]),
-        atr:         findCol(headers, ["Average True Range"]),
-        avgVolume:   findCol(headers, ["Average Volume"]),
-        relVolume:   findCol(headers, ["Relative Volume"]),
-        volume:      findCol(headers, ["Volume"]),
-        high52w:     findCol(headers, ["52-Week High"]),
-        low52w:      findCol(headers, ["52-Week Low"]),
-        rsi14:       findCol(headers, ["Relative Strength Index (14)"]),
-        roe:         findCol(headers, ["Return on Equity"]),
-        netMargin:   findCol(headers, ["Profit Margin", "Net Margin"]),
-        shortFloat:  findCol(headers, ["Short Float"]),
+        ticker:     findCol(headers, ["Ticker"]),
+        price:      findCol(headers, ["Price"]),
+        change:     findCol(headers, ["Change"]),
+        volume:     findCol(headers, ["Volume"]),
+        avgVolume:  findCol(headers, ["Average Volume"]),
+        relVolume:  findCol(headers, ["Relative Volume"]),
+        atr:        findCol(headers, ["Average True Range"]),
+        roe:        findCol(headers, ["Return on Equity"]),
+        netMargin:  findCol(headers, ["Profit Margin", "Net Margin"]),
+        shortFloat: findCol(headers, ["Short Float", "Float Short"]),
       };
       const get = (row: string[], k: number) => k >= 0 ? row[k] : undefined;
       const parsed: ParsedRow[] = []; const seen = new Set<string>();
@@ -187,26 +146,14 @@ async function finvizPull(filters: string, auth: string): Promise<ParsedRow[]> {
         const ticker = str(get(row, idx.ticker)) ?? "";
         if (!ticker || seen.has(ticker)) continue;
         seen.add(ticker);
-        const mcapRaw = num(get(row, idx.marketCap));
         parsed.push({
-          ticker, company: str(get(row, idx.company)),
-          sector: str(get(row, idx.sector)), industry: str(get(row, idx.industry)),
+          ticker,
           price: num(get(row, idx.price)),
-          marketCapM: mcapRaw == null ? null : mcapRaw / 1e6,
           volume: int(get(row, idx.volume)),
           avgVolume: int(get(row, idx.avgVolume)),
           relVolume: num(get(row, idx.relVolume)),
           perfDay: pct(get(row, idx.change)),
-          perfWeek: pct(get(row, idx.perfWeek)),
-          perfMonth: pct(get(row, idx.perfMonth)),
-          perfQuarter: pct(get(row, idx.perfQuarter)),
-          perfHalf: pct(get(row, idx.perfHalf)),
-          perfYear: pct(get(row, idx.perfYear)),
-          perfYtd: pct(get(row, idx.perfYtd)),
           atr: num(get(row, idx.atr)),
-          rsi14: num(get(row, idx.rsi14)),
-          high52wPct: pct(get(row, idx.high52w)),
-          low52wPct: pct(get(row, idx.low52w)),
           roe: pct(get(row, idx.roe)),
           netMargin: pct(get(row, idx.netMargin)),
           shortFloat: pct(get(row, idx.shortFloat)),
@@ -223,98 +170,89 @@ async function finvizPull(filters: string, auth: string): Promise<ParsedRow[]> {
 
 function toRecord(scannerId: string, snapshotDate: string, r: ParsedRow, rank: number, stageTag: string | null = null) {
   const atrPct = r.atr != null && r.price != null && r.price !== 0
-    ? Math.round((r.atr / r.price) * 100 * 100) / 100
-    : null;
-  const dist52wHighPct = r.high52wPct != null ? Math.abs(r.high52wPct) : null;
+    ? Math.round((r.atr / r.price) * 100 * 100) / 100 : null;
   return {
     scanner_id: scannerId, ticker: r.ticker, snapshot_date: snapshotDate, rank,
-    company: r.company, sector: r.sector, industry: r.industry,
-    price: r.price, market_cap_millions: r.marketCapM,
+    company: null, sector: null, industry: null,
+    price: r.price, market_cap_millions: null,
     volume: r.volume, avg_volume: r.avgVolume, rel_volume: r.relVolume,
-    perf_day: r.perfDay, perf_week: r.perfWeek, perf_month: r.perfMonth,
-    perf_quarter: r.perfQuarter, perf_half: r.perfHalf,
-    perf_year: r.perfYear, perf_ytd: r.perfYtd,
-    rsi14: r.rsi14, atr: r.atr, atr_pct: atrPct,
-    stage_tag: stageTag, dist_52w_high_pct: dist52wHighPct,
+    perf_day: r.perfDay, perf_week: null, perf_month: null,
+    perf_quarter: null, perf_half: null, perf_year: null, perf_ytd: null,
+    rsi14: null, atr: r.atr, atr_pct: atrPct,
+    stage_tag: stageTag, dist_52w_high_pct: null,
     roe: r.roe, net_margin: r.netMargin, short_float_pct: r.shortFloat,
     extras: null as Record<string, unknown> | null,
   };
 }
 
 async function upsertScanner(scannerId: string, snapshotDate: string, records: ReturnType<typeof toRecord>[]) {
-  await supabase.from("scanner_results").delete()
-    .eq("scanner_id", scannerId).eq("snapshot_date", snapshotDate);
+  await supabase.from("scanner_results").delete().eq("scanner_id", scannerId).eq("snapshot_date", snapshotDate);
   if (records.length === 0) return;
   const { error } = await supabase.from("scanner_results").insert(records);
   if (error) throw error;
 }
 
-async function runSingleUrl(scannerId: string, filterKey: string, auth: string, snapshotDate: string, stageTag: string | null = null) {
-  const filters = REF_FILTERS[filterKey];
-  if (!filters) throw new Error(`No REF_FILTERS entry for ${filterKey}`);
-  const raw = await finvizPull(filters, auth);
-  const records = raw.map((r, i) => toRecord(scannerId, snapshotDate, r, i + 1, stageTag));
-  await upsertScanner(scannerId, snapshotDate, records);
+async function runSingle(scannerId: string, urlKey: string, auth: string, snap: string, stageTag: string | null = null) {
+  const refUrl = REF_URLS[urlKey];
+  if (!refUrl) throw new Error(`No REF_URLS entry for ${urlKey}`);
+  const raw = await finvizPull(refUrl, auth);
+  const records = raw.map((r, i) => toRecord(scannerId, snap, r, i + 1, stageTag));
+  await upsertScanner(scannerId, snap, records);
   return { fetched: raw.length, inserted: records.length };
 }
 
-async function runParabolicShort(auth: string, snapshotDate: string) {
-  const large = await finvizPull(REF_FILTERS.qulla_ps_large, auth);
+async function runParabolicShort(auth: string, snap: string) {
+  const large = await finvizPull(REF_URLS.qulla_ps_large, auth);
   await sleep(CALL_DELAY_MS);
-  const small = await finvizPull(REF_FILTERS.qulla_ps_small, auth);
-  const byTicker = new Map<string, ParsedRow>();
-  for (const r of large) if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, r);
-  for (const r of small) if (!byTicker.has(r.ticker)) byTicker.set(r.ticker, r);
-  const merged = Array.from(byTicker.values())
-    .sort((a, b) => (b.perfDay ?? -Infinity) - (a.perfDay ?? -Infinity));
-  const records = merged.map((r, i) => toRecord("parabolic_short", snapshotDate, r, i + 1, "PS"));
-  await upsertScanner("parabolic_short", snapshotDate, records);
+  const small = await finvizPull(REF_URLS.qulla_ps_small, auth);
+  const byT = new Map<string, ParsedRow>();
+  for (const r of large) if (!byT.has(r.ticker)) byT.set(r.ticker, r);
+  for (const r of small) if (!byT.has(r.ticker)) byT.set(r.ticker, r);
+  const merged = Array.from(byT.values()).sort((a, b) => (b.perfDay ?? -Infinity) - (a.perfDay ?? -Infinity));
+  const records = merged.map((r, i) => toRecord("parabolic_short", snap, r, i + 1, "PS"));
+  await upsertScanner("parabolic_short", snap, records);
   return { fetched: large.length + small.length, inserted: records.length };
 }
 
-async function runQullamaggieCombined(auth: string, snapshotDate: string) {
-  const ep = await finvizPull(REF_FILTERS.qulla_episodic, auth);
+async function runQullaCombined(auth: string, snap: string) {
+  const ep = await finvizPull(REF_URLS.qulla_episodic, auth);
   await sleep(CALL_DELAY_MS);
-  const psL = await finvizPull(REF_FILTERS.qulla_ps_large, auth);
+  const psL = await finvizPull(REF_URLS.qulla_ps_large, auth);
   await sleep(CALL_DELAY_MS);
-  const psS = await finvizPull(REF_FILTERS.qulla_ps_small, auth);
+  const psS = await finvizPull(REF_URLS.qulla_ps_small, auth);
   await sleep(CALL_DELAY_MS);
-  const bo = await finvizPull(REF_FILTERS.qulla_breakouts, auth);
-  const tagsByTicker = new Map<string, { row: ParsedRow; tags: Set<string> }>();
-  for (const r of ep)  { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("EP"); tagsByTicker.set(r.ticker, e); }
-  for (const r of psL) { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("PS"); tagsByTicker.set(r.ticker, e); }
-  for (const r of psS) { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("PS"); tagsByTicker.set(r.ticker, e); }
-  for (const r of bo)  { const e = tagsByTicker.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("BO"); tagsByTicker.set(r.ticker, e); }
-  const merged = Array.from(tagsByTicker.values())
-    .sort((a, b) => (b.row.perfDay ?? -Infinity) - (a.row.perfDay ?? -Infinity));
-  const records = merged.map(({ row, tags }, i) => {
-    const tag = Array.from(tags).sort().join(", ");
-    return toRecord("qullamaggie_combined", snapshotDate, row, i + 1, tag);
-  });
-  await upsertScanner("qullamaggie_combined", snapshotDate, records);
+  const bo = await finvizPull(REF_URLS.qulla_breakouts, auth);
+  const m = new Map<string, { row: ParsedRow; tags: Set<string> }>();
+  for (const r of ep)  { const e = m.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("EP"); m.set(r.ticker, e); }
+  for (const r of psL) { const e = m.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("PS"); m.set(r.ticker, e); }
+  for (const r of psS) { const e = m.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("PS"); m.set(r.ticker, e); }
+  for (const r of bo)  { const e = m.get(r.ticker) ?? { row: r, tags: new Set() }; e.tags.add("BO"); m.set(r.ticker, e); }
+  const merged = Array.from(m.values()).sort((a, b) => (b.row.perfDay ?? -Infinity) - (a.row.perfDay ?? -Infinity));
+  const records = merged.map(({ row, tags }, i) => toRecord("qullamaggie_combined", snap, row, i + 1, Array.from(tags).sort().join(", ")));
+  await upsertScanner("qullamaggie_combined", snap, records);
   return { fetched: ep.length + psL.length + psS.length + bo.length, inserted: records.length };
 }
 
 const RUNNERS: Record<string, (auth: string, snap: string) => Promise<{ fetched: number; inserted: number }>> = {
-  minervini:            (a, s) => runSingleUrl("minervini", "minervini", a, s),
-  canslim:              (a, s) => runSingleUrl("canslim", "oneil", a, s),
-  jeff_sun_canslim:     (a, s) => runSingleUrl("jeff_sun_canslim", "jeff_sun_canslim", a, s),
-  high_adr:             (a, s) => runSingleUrl("high_adr", "jeff_sun_high_adr", a, s),
-  extended_bases:       (a, s) => runSingleUrl("extended_bases", "jeff_sun_extended_bases", a, s),
-  julian_strongest:     (a, s) => runSingleUrl("julian_strongest", "julian_komar_strongest", a, s),
-  qullamaggie:          (a, s) => runSingleUrl("qullamaggie", "qulla_episodic", a, s, "EP"),
-  qullamaggie_breakout: (a, s) => runSingleUrl("qullamaggie_breakout", "qulla_breakouts", a, s, "BO"),
+  minervini:            (a, s) => runSingle("minervini", "minervini", a, s),
+  canslim:              (a, s) => runSingle("canslim", "oneil", a, s),
+  jeff_sun_canslim:     (a, s) => runSingle("jeff_sun_canslim", "jeff_sun_canslim", a, s),
+  high_adr:             (a, s) => runSingle("high_adr", "jeff_sun_high_adr", a, s),
+  extended_bases:       (a, s) => runSingle("extended_bases", "jeff_sun_extended_bases", a, s),
+  julian_strongest:     (a, s) => runSingle("julian_strongest", "julian_komar_strongest", a, s),
+  qullamaggie:          (a, s) => runSingle("qullamaggie", "qulla_episodic", a, s, "EP"),
+  qullamaggie_breakout: (a, s) => runSingle("qullamaggie_breakout", "qulla_breakouts", a, s, "BO"),
   parabolic_short:      (a, s) => runParabolicShort(a, s),
-  qullamaggie_combined: (a, s) => runQullamaggieCombined(a, s),
-  perf_1w20:            (a, s) => runSingleUrl("perf_1w20", "jeff_sun_1w20", a, s),
-  perf_4w30:            (a, s) => runSingleUrl("perf_4w30", "jeff_sun_4w30", a, s),
-  perf_4w50:            (a, s) => runSingleUrl("perf_4w50", "jeff_sun_4w50", a, s),
-  perf_13w50:           (a, s) => runSingleUrl("perf_13w50", "jeff_sun_13w50", a, s),
-  perf_26w100:          (a, s) => runSingleUrl("perf_26w100", "jeff_sun_26w100", a, s),
-  up4_daily:            (a, s) => runSingleUrl("up4_daily", "up4_daily", a, s),
-  ipo_thisweek:         (a, s) => runSingleUrl("ipo_thisweek", "jeff_sun_ipo_thisweek", a, s),
-  high_short:           (a, s) => runSingleUrl("high_short", "jeff_sun_high_short_float", a, s),
-  liquid_etfs:          (a, s) => runSingleUrl("liquid_etfs", "jeff_sun_liquid_etfs", a, s),
+  qullamaggie_combined: (a, s) => runQullaCombined(a, s),
+  perf_1w20:            (a, s) => runSingle("perf_1w20", "jeff_sun_1w20", a, s),
+  perf_4w30:            (a, s) => runSingle("perf_4w30", "jeff_sun_4w30", a, s),
+  perf_4w50:            (a, s) => runSingle("perf_4w50", "jeff_sun_4w50", a, s),
+  perf_13w50:           (a, s) => runSingle("perf_13w50", "jeff_sun_13w50", a, s),
+  perf_26w100:          (a, s) => runSingle("perf_26w100", "jeff_sun_26w100", a, s),
+  up4_daily:            (a, s) => runSingle("up4_daily", "up4_daily", a, s),
+  ipo_thisweek:         (a, s) => runSingle("ipo_thisweek", "jeff_sun_ipo_thisweek", a, s),
+  high_short:           (a, s) => runSingle("high_short", "jeff_sun_high_short_float", a, s),
+  liquid_etfs:          (a, s) => runSingle("liquid_etfs", "jeff_sun_liquid_etfs", a, s),
 };
 
 const GROUPS: Record<string, string[]> = {
@@ -336,41 +274,24 @@ function parseEarningsDate(raw: string | null): { date: string | null; time: str
   return { date, time };
 }
 
-async function fetchEarningsThisWeek(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number }> {
-  const raw = await finvizPull("earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1", auth);
+async function fetchEarnings(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number }> {
+  const url = "https://elite.finviz.com/export.ashx?v=161&f=earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68,6,65";
+  const res = await fetch(`${url}&auth=${auth}`);
+  if (!res.ok) { await res.body?.cancel(); throw new Error(`Finviz earnings ${res.status}`); }
+  const rows = parseCSV(await res.text());
+  if (rows.length < 2) return { rows: [], raw: 0 };
+  const hdr = rows[0].map((h) => h.trim());
+  const tI = findCol(hdr, ["Ticker"]);
+  const dI = findCol(hdr, ["Earnings Date"]);
   const out: Array<Record<string, unknown>> = []; const seen = new Set<string>();
-  await sleep(CALL_DELAY_MS);
-  const dateRes = await fetch(
-    `https://elite.finviz.com/export.ashx?v=161&f=earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68&auth=${auth}`,
-  );
-  const dateMap = new Map<string, string>();
-  if (dateRes.ok) {
-    const text = await dateRes.text();
-    const rows = parseCSV(text);
-    if (rows.length > 1) {
-      const hdr = rows[0].map((h) => h.trim());
-      const tIdx = findCol(hdr, ["Ticker"]);
-      const dIdx = findCol(hdr, ["Earnings Date"]);
-      for (let r = 1; r < rows.length; r++) {
-        const t = str(rows[r][tIdx]); const d = str(rows[r][dIdx]);
-        if (t && d) dateMap.set(t, d);
-      }
-    }
-  } else {
-    await dateRes.body?.cancel();
-  }
-  for (const r of raw) {
-    const dateRaw = dateMap.get(r.ticker) ?? null;
-    const { date, time } = parseEarningsDate(dateRaw);
+  for (let r = 1; r < rows.length; r++) {
+    const t = str(rows[r][tI]); if (!t) continue;
+    const { date, time } = parseEarningsDate(str(rows[r][dI]));
     if (!date) continue;
-    const key = `${r.ticker}|${date}`; if (seen.has(key)) continue; seen.add(key);
-    out.push({
-      ticker: r.ticker, earnings_date: date, earnings_time: time,
-      company: r.company, sector: r.sector, industry: r.industry,
-      market_cap_millions: r.marketCapM, fetched_at: new Date().toISOString(),
-    });
+    const key = `${t}|${date}`; if (seen.has(key)) continue; seen.add(key);
+    out.push({ ticker: t, earnings_date: date, earnings_time: time, fetched_at: new Date().toISOString() });
   }
-  return { rows: out, raw: raw.length };
+  return { rows: out, raw: rows.length - 1 };
 }
 
 Deno.serve(async (req: Request) => {
@@ -380,46 +301,34 @@ Deno.serve(async (req: Request) => {
   const onlyId = url.searchParams.get("only");
   const includeEarnings = url.searchParams.get("earnings") === "1" || group === "special";
 
-  const { data: jobRow } = await supabase
-    .from("job_runs")
+  const { data: jobRow } = await supabase.from("job_runs")
     .insert({ job_name: `fetch-finviz-scanners:${onlyId ?? group}`, status: "running" })
     .select("id").single();
   const jobId: number | null = jobRow?.id ?? null;
-
   const finishJob = async (status: "ok" | "error", summary: Record<string, unknown> | null, error?: string) => {
     if (jobId == null) return;
     await supabase.from("job_runs").update({
-      finished_at: new Date().toISOString(),
-      status, elapsed_ms: Date.now() - started, summary, error: error ?? null,
+      finished_at: new Date().toISOString(), status, elapsed_ms: Date.now() - started, summary, error: error ?? null,
     }).eq("id", jobId);
   };
 
   try {
     const auth = await getSecret("finviz_token");
-    const snapshotDate = new Date().toISOString().slice(0, 10);
-
-    let scannerIds: string[];
-    if (onlyId) {
-      if (!RUNNERS[onlyId]) throw new Error(`Unknown scanner id: ${onlyId}`);
-      scannerIds = [onlyId];
-    } else if (group === "all") {
-      scannerIds = Object.keys(RUNNERS);
-    } else {
-      if (!GROUPS[group]) throw new Error(`Unknown group: ${group} (trend|perf|perf2|special|all)`);
-      scannerIds = GROUPS[group];
-    }
+    const snap = new Date().toISOString().slice(0, 10);
+    let ids: string[];
+    if (onlyId) { if (!RUNNERS[onlyId]) throw new Error(`Unknown scanner id: ${onlyId}`); ids = [onlyId]; }
+    else if (group === "all") ids = Object.keys(RUNNERS);
+    else { if (!GROUPS[group]) throw new Error(`Unknown group: ${group}`); ids = GROUPS[group]; }
 
     const summary: Record<string, { fetched: number; inserted: number; elapsed_ms: number; error?: string }> = {};
-
-    for (let idx = 0; idx < scannerIds.length; idx++) {
-      const id = scannerIds[idx];
-      if (idx > 0) await sleep(CALL_DELAY_MS);
+    for (let i = 0; i < ids.length; i++) {
+      if (i > 0) await sleep(CALL_DELAY_MS);
       const t0 = Date.now();
       try {
-        const { fetched, inserted } = await RUNNERS[id](auth, snapshotDate);
-        summary[id] = { fetched, inserted, elapsed_ms: Date.now() - t0 };
+        const { fetched, inserted } = await RUNNERS[ids[i]](auth, snap);
+        summary[ids[i]] = { fetched, inserted, elapsed_ms: Date.now() - t0 };
       } catch (err) {
-        summary[id] = { fetched: 0, inserted: 0, elapsed_ms: Date.now() - t0, error: String(err instanceof Error ? err.message : err) };
+        summary[ids[i]] = { fetched: 0, inserted: 0, elapsed_ms: Date.now() - t0, error: String(err instanceof Error ? err.message : err) };
       }
     }
 
@@ -427,42 +336,28 @@ Deno.serve(async (req: Request) => {
     if (includeEarnings && !onlyId) {
       await sleep(CALL_DELAY_MS);
       try {
-        const earnings = await fetchEarningsThisWeek(auth);
-        if (earnings.rows.length > 0) {
+        const e = await fetchEarnings(auth);
+        if (e.rows.length > 0) {
           const today = new Date().toISOString().slice(0, 10);
           await supabase.from("earnings_calendar").delete().gte("earnings_date", today);
-          const { error } = await supabase.from("earnings_calendar")
-            .upsert(earnings.rows, { onConflict: "ticker,earnings_date" });
+          const { error } = await supabase.from("earnings_calendar").upsert(e.rows, { onConflict: "ticker,earnings_date" });
           if (error) throw error;
         }
-        earningsSummary = { fetched: earnings.raw, inserted: earnings.rows.length };
-      } catch (err) {
-        earningsSummary = { error: String(err instanceof Error ? err.message : err) };
-      }
+        earningsSummary = { fetched: e.raw, inserted: e.rows.length };
+      } catch (err) { earningsSummary = { error: String(err instanceof Error ? err.message : err) }; }
     }
 
-    const failedCount = Object.values(summary).filter((s) => s.error).length;
-    const fullSummary = {
-      group: onlyId ? `only:${onlyId}` : group,
-      snapshot_date: snapshotDate,
-      scanner_count: Object.keys(summary).length,
-      scanners_ok: Object.keys(summary).length - failedCount,
-      scanners_failed: failedCount,
-      scanners: summary,
-      earnings: earningsSummary,
-    };
-    await finishJob(failedCount === 0 ? "ok" : (failedCount > Object.keys(summary).length / 2 ? "error" : "ok"), fullSummary);
-
-    return new Response(
-      JSON.stringify({ ok: failedCount === 0, elapsed_ms: Date.now() - started, ...fullSummary }),
-      { headers: { "Content-Type": "application/json" } },
-    );
+    const failed = Object.values(summary).filter((s) => s.error).length;
+    const full = { group: onlyId ? `only:${onlyId}` : group, snapshot_date: snap,
+      scanner_count: Object.keys(summary).length, scanners_ok: Object.keys(summary).length - failed,
+      scanners_failed: failed, scanners: summary, earnings: earningsSummary };
+    await finishJob(failed === 0 ? "ok" : (failed > Object.keys(summary).length / 2 ? "error" : "ok"), full);
+    return new Response(JSON.stringify({ ok: failed === 0, elapsed_ms: Date.now() - started, ...full }),
+      { headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await finishJob("error", null, errMsg);
-    return new Response(
-      JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    const m = err instanceof Error ? err.message : String(err);
+    await finishJob("error", null, m);
+    return new Response(JSON.stringify({ ok: false, error: m, elapsed_ms: Date.now() - started }),
+      { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });

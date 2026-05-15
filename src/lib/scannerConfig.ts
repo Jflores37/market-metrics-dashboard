@@ -32,22 +32,24 @@ export interface ScannerLayout {
 }
 
 // Basic 7-column layout (Ticker / Price / Avg Vol / Rel Vol / Change /
-// Vol / ATR %). Matches `_build_screener_table` in reference layout.py:494.
+// Vol / ATR %). Matches `_build_screener_table` in reference layout.py:494
+// and the reference's verbatim export URL c=1,47,61,62,63,64,65.
 const BASIC: ScannerColKey[] = ["ticker", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
 
 // Qullamaggie variants: basic + tag column (EP/PS/BO badges).
 const QULLA: ScannerColKey[] = [...BASIC, "tag"];
 
-// StockBee 20% weekly mover: inserts `week` between ticker and price.
-const WEEKLY_MOVER: ScannerColKey[] = ["ticker", "week", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
-
 // StockBee 4% daily: change column comes BEFORE price.
 const DAILY_4PCT: ScannerColKey[] = ["ticker", "change", "price", "avg_vol", "rel_vol", "volume", "atr_pct"];
 
 // O'Neil full (reference build_oneil_table L1075): basic + ROE + Net Margin.
+// The reference's oneil URL requests c=1,32,40,47,... (ROE col 32, Profit
+// Margin col 40), so these resolve from the CSV header names.
 const ONEIL: ScannerColKey[] = [...BASIC, "roe", "net_margin"];
 
 // High Short Float (reference L1328): Sh Float inserted right after Ticker.
+// Reference's jeff_sun_high_short_float URL is v=131 c=1,32,... (col 32 =
+// Short Float in the Financial view).
 const HIGH_SHORT: ScannerColKey[] = ["ticker", "short_float", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
 
 export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
@@ -66,8 +68,9 @@ export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
   qullamaggie_combined: { columns: QULLA },
   parabolic_short:      { columns: QULLA },
 
-  // Jeff Sun movers
-  perf_1w20:            { columns: WEEKLY_MOVER },
+  // Jeff Sun movers — reference URLs all use the BASIC c= set
+  // (jeff_sun_1w20 does NOT include PerfWeek, so no Week column).
+  perf_1w20:            { columns: BASIC },
   perf_4w30:            { columns: BASIC },
   perf_4w50:            { columns: BASIC },
   perf_13w50:           { columns: BASIC },
