@@ -5,43 +5,49 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Bloomberg terminal palette
+        // Bloomberg/CRT terminal palette (HSL-derived; see plan)
         bg: {
-          DEFAULT: "#0a0e14",
-          card: "#0f1419",
-          panel: "#11161d",
-          hover: "#1a1f28",
+          DEFAULT: "#0a0d12",   // hsl(220 20% 4%)
+          card: "#0e1218",      // hsl(220 20% 6%)
+          panel: "#10141c",     // hsl(220 20% 7%)
+          surface2: "#0c0f15",  // hsl(220 20% 5%) — gradient bottom stop
+          hover: "#171c25",
         },
         border: {
-          DEFAULT: "#1c2128",
-          subtle: "#161b22",
+          DEFAULT: "#1f242f",   // hsl(220 15% 14%)
+          subtle: "#1a1f29",    // hsl(220 15% 12%)
         },
         text: {
-          primary: "#e6edf3",
-          secondary: "#8b949e",
-          dim: "#6e7681",
+          primary: "#7ee3a4",   // hsl(142 70% 70%) — green-tinted
+          secondary: "#7a8092", // hsl(220 10% 50%)
+          dim: "#5e6473",       // hsl(220 10% 40%)
         },
         accent: {
           orange: "#ff8c00",
-          green: "#3fb950",
-          red: "#f85149",
+          green: "#3fcf6b",
+          red: "#e04444",
           yellow: "#d29922",
           blue: "#58a6ff",
           purple: "#bc8cff",
+          cyan: "#34c5d6",
+          amber: "#f0b424",
         },
         signal: {
-          hawkish: "#f85149",
-          dovish: "#3fb950",
-          neutral: "#8b949e",
-          tightening: "#d29922",
+          hawkish: "#e04444",
+          dovish: "#3fcf6b",
+          neutral: "#7a8092",
+          tightening: "#f0b424",
         },
       },
       fontFamily: {
         mono: ["'JetBrains Mono'", "'SF Mono'", "Menlo", "Monaco", "Consolas", "monospace"],
-        sans: ["'Inter'", "system-ui", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        sans: ["'JetBrains Mono'", "'SF Mono'", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       fontSize: {
         "2xs": "0.625rem",
+      },
+      borderRadius: {
+        DEFAULT: "2px",
       },
     },
   },
