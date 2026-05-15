@@ -1,5 +1,3 @@
-import { BreadthBars } from "@/components/mm/BreadthBars";
-import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
 import { useQuery } from "@tanstack/react-query";
 import {
   LineChart, Line, BarChart, Bar, Cell, ReferenceLine, Tooltip, ResponsiveContainer,
@@ -8,6 +6,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
+import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
 
 // ===== Pinned SIT Banner =====
 function PinnedSITBanner() {
@@ -44,9 +43,7 @@ function PinnedSITBanner() {
         <div className={`font-mono text-3xl font-bold ${decisionColor}`}>{data.decision}</div>
         <div className="font-mono text-sm text-text-secondary">
           MQS{" "}
-          <span className="text-text-primary font-semibold">
-            {num(data.market_quality_score, 1)}
-          </span>
+          <span className="text-text-primary font-semibold">{num(data.market_quality_score, 1)}</span>
           {"  ·  "}EWS{" "}
           <span className={colorClass((data.execution_window_score ?? 50) - 50)}>
             {num(data.execution_window_score, 1)}
@@ -62,7 +59,7 @@ function PinnedSITBanner() {
   );
 }
 
-// ===== Sector SPDR Grid =====
+// ===== Sector SPDRs =====
 interface SectorRow {
   ticker: string;
   sector_label: string | null;
@@ -93,9 +90,7 @@ function SectorGrid() {
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
           <span className="text-accent-orange text-sm">◆</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Sector SPDRs
-          </span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Sector SPDRs</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
       </div>
@@ -116,10 +111,7 @@ function SectorGrid() {
           </thead>
           <tbody>
             {data.map((row) => (
-              <tr
-                key={row.ticker}
-                className={`border-b border-border-subtle/40 hover:bg-bg-hover ${row.is_benchmark ? "bg-bg-panel/40" : ""}`}
-              >
+              <tr key={row.ticker} className={`border-b border-border-subtle/40 hover:bg-bg-hover ${row.is_benchmark ? "bg-bg-panel/40" : ""}`}>
                 <td className="py-1 pl-1">
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
                   {row.is_benchmark && <span className="text-2xs text-accent-orange ml-1">·</span>}
@@ -175,9 +167,7 @@ function WatchlistTable() {
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
           <span className="text-accent-orange text-sm">★</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Watchlist
-          </span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Watchlist</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
       </div>
@@ -269,9 +259,7 @@ function StageAnalysisCard() {
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
           <span className="text-accent-orange text-sm">◫</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Stage Analysis · Weinstein 10 substages
-          </span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stage Analysis · Weinstein 10 substages</span>
         </div>
         <span className="font-mono text-2xs text-text-dim tabular-nums">{universe.toLocaleString()} stocks</span>
       </div>
@@ -298,7 +286,7 @@ function StageAnalysisCard() {
   );
 }
 
-// ===== Stockbee Breadth (latest snapshot) =====
+// ===== Stockbee Breadth =====
 interface StockbeeBreadth {
   observation_date: string;
   up_4pct: number;
@@ -316,10 +304,7 @@ function StockbeeBreadthCard() {
   const { data } = useQuery({
     queryKey: ["mm-stockbee-latest"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stockbee_breadth_latest_v")
-        .select("*")
-        .maybeSingle();
+      const { data, error } = await supabase.from("stockbee_breadth_latest_v").select("*").maybeSingle();
       if (error) throw error;
       return data as StockbeeBreadth | null;
     },
@@ -343,9 +328,7 @@ function StockbeeBreadthCard() {
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
           <span className="text-accent-orange text-sm">⊟</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Stockbee Breadth
-          </span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Breadth</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.observation_date}</span>
       </div>
@@ -360,9 +343,7 @@ function StockbeeBreadthCard() {
         </div>
         <div>
           <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">5d A/D Ratio</div>
-          <div className={`tabular-nums text-lg font-semibold ${ratio5Tone}`}>
-            {num(data.ratio5, 2)}
-          </div>
+          <div className={`tabular-nums text-lg font-semibold ${ratio5Tone}`}>{num(data.ratio5, 2)}</div>
         </div>
         <div>
           <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">25%+ Qtr Up / Dn</div>
@@ -374,9 +355,7 @@ function StockbeeBreadthCard() {
         </div>
         <div>
           <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">T2108</div>
-          <div className={`tabular-nums text-lg font-semibold ${t2108Tone}`}>
-            {num(data.t2108, 1)}
-          </div>
+          <div className={`tabular-nums text-lg font-semibold ${t2108Tone}`}>{num(data.t2108, 1)}</div>
         </div>
       </div>
     </div>
@@ -414,14 +393,7 @@ function useStockbeeHistory() {
 
 type MiniChartType = "ratio5" | "t2108" | "fourpct_net" | "qtr_net";
 
-function MiniChartCard({
-  title, history, type, refLine,
-}: {
-  title: string;
-  history: StockbeeHistoryRow[];
-  type: MiniChartType;
-  refLine?: number;
-}) {
+function MiniChartCard({ title, history, type, refLine }: { title: string; history: StockbeeHistoryRow[]; type: MiniChartType; refLine?: number }) {
   const data = history.map((d) => {
     let value: number;
     if (type === "ratio5") value = Number(d.ratio5);
@@ -434,25 +406,16 @@ function MiniChartCard({
   const last = data[data.length - 1]?.value ?? 0;
   const useBar = type === "fourpct_net" || type === "qtr_net";
   const lineColor = last >= (refLine ?? 0) ? "#3fb950" : "#f85149";
-
-  const displayValue =
-    type === "ratio5" || type === "t2108"
-      ? num(last, 2)
-      : `${last > 0 ? "+" : ""}${Math.round(last)}`;
-
+  const displayValue = type === "ratio5" || type === "t2108" ? num(last, 2) : `${last > 0 ? "+" : ""}${Math.round(last)}`;
   const displayColor =
     type === "ratio5" ? (last >= 1 ? "text-accent-green" : "text-accent-red") :
-    type === "t2108"  ? (last >= 50 ? "text-accent-green" : last >= 30 ? "text-accent-yellow" : "text-accent-red") :
-    last >= 0         ? "text-accent-green" : "text-accent-red";
+    type === "t2108" ? (last >= 50 ? "text-accent-green" : last >= 30 ? "text-accent-yellow" : "text-accent-red") :
+    last >= 0 ? "text-accent-green" : "text-accent-red";
 
   return (
     <div className="terminal-card p-3">
-      <div className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold mb-1">
-        {title}
-      </div>
-      <div className={`font-mono text-base tabular-nums font-semibold ${displayColor}`}>
-        {displayValue}
-      </div>
+      <div className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold mb-1">{title}</div>
+      <div className={`font-mono text-base tabular-nums font-semibold ${displayColor}`}>{displayValue}</div>
       <div className="h-12 mt-1">
         <ResponsiveContainer width="100%" height="100%">
           {useBar ? (
@@ -465,22 +428,18 @@ function MiniChartCard({
               </Bar>
               <Tooltip
                 contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }}
-                itemStyle={{ color: "#e6edf3" }}
+                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
                 cursor={{ fill: "rgba(48,54,61,0.3)" }}
                 formatter={(v: any) => [v > 0 ? `+${v}` : `${v}`, ""]}
               />
             </BarChart>
           ) : (
             <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              {refLine !== undefined && (
-                <ReferenceLine y={refLine} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />
-              )}
+              {refLine !== undefined && <ReferenceLine y={refLine} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />}
               <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }}
-                itemStyle={{ color: "#e6edf3" }}
+                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
                 cursor={{ stroke: "#30363d" }}
                 formatter={(v: any) => [num(v, 2), ""]}
               />
@@ -495,7 +454,6 @@ function MiniChartCard({
 function StockbeeHistoryCharts() {
   const { data } = useStockbeeHistory();
   if (!data || data.length === 0) return null;
-
   return (
     <div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-2 flex items-baseline gap-2">
@@ -517,10 +475,7 @@ function StockbeeMomentum50() {
   const { data } = useQuery({
     queryKey: ["mm-momentum50"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stockbee_momentum50_latest_v")
-        .select("*")
-        .maybeSingle();
+      const { data, error } = await supabase.from("stockbee_momentum50_latest_v").select("*").maybeSingle();
       if (error) throw error;
       return data as { observation_date: string; tickers: string[] } | null;
     },
@@ -533,22 +488,13 @@ function StockbeeMomentum50() {
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
           <span className="text-accent-orange text-sm">⚡</span>
-          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Stockbee Momentum 50
-          </span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Momentum 50</span>
         </div>
-        <span className="font-mono text-2xs text-text-dim">
-          {data.observation_date} · {data.tickers.length} tickers
-        </span>
+        <span className="font-mono text-2xs text-text-dim">{data.observation_date} · {data.tickers.length} tickers</span>
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1.5">
         {data.tickers.map((t) => (
-          <div
-            key={t}
-            className="font-mono text-xs text-text-primary font-semibold bg-bg-panel rounded px-2 py-1 text-center hover:bg-bg-hover transition-colors"
-          >
-            {t}
-          </div>
+          <div key={t} className="font-mono text-xs text-text-primary font-semibold bg-bg-panel rounded px-2 py-1 text-center hover:bg-bg-hover transition-colors">{t}</div>
         ))}
       </div>
     </div>
@@ -579,9 +525,11 @@ export default function MarketMetrics() {
       </div>
 
       <WatchlistTable />
+
       <StockbeeBreadthCard />
       <StockbeeHistoryCharts />
       <StockbeeMomentum50 />
+
       <IndustryThemeBlocks />
     </div>
   );
