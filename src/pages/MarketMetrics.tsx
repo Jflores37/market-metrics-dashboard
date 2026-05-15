@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  LineChart, Line, BarChart, Bar, Cell, ReferenceLine, Tooltip, ResponsiveContainer,
+} from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
+import { BreadthBars } from "@/components/mm/BreadthBars";
 
 // ===== Pinned SIT Banner =====
 function PinnedSITBanner() {
@@ -112,40 +116,20 @@ function SectorGrid() {
             {data.map((row) => (
               <tr
                 key={row.ticker}
-                className={`border-b border-border-subtle/40 hover:bg-bg-hover ${
-                  row.is_benchmark ? "bg-bg-panel/40" : ""
-                }`}
+                className={`border-b border-border-subtle/40 hover:bg-bg-hover ${row.is_benchmark ? "bg-bg-panel/40" : ""}`}
               >
                 <td className="py-1 pl-1">
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
-                  {row.is_benchmark && (
-                    <span className="text-2xs text-accent-orange ml-1">·</span>
-                  )}
+                  {row.is_benchmark && <span className="text-2xs text-accent-orange ml-1">·</span>}
                 </td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">
-                  {row.sector_label || "—"}
-                </td>
-                <td className="py-1 text-text-primary tabular-nums text-right">
-                  {usd(row.price, 2)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>
-                  {pct(row.perf_day, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>
-                  {pct(row.perf_week, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>
-                  {pct(row.perf_month, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_quarter)}`}>
-                  {pct(row.perf_quarter, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>
-                  {pct(row.perf_year, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right pr-1 ${colorClass(row.perf_ytd)}`}>
-                  {pct(row.perf_ytd, 1)}
-                </td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
+                <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_quarter)}`}>{pct(row.perf_quarter, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
+                <td className={`py-1 tabular-nums text-right pr-1 ${colorClass(row.perf_ytd)}`}>{pct(row.perf_ytd, 1)}</td>
               </tr>
             ))}
           </tbody>
@@ -159,8 +143,6 @@ function SectorGrid() {
 interface WatchlistRow {
   id: number;
   ticker: string;
-  position: number | null;
-  notes: string | null;
   sector: string | null;
   industry: string | null;
   price: number | null;
@@ -218,36 +200,16 @@ function WatchlistTable() {
             {data.map((row) => (
               <tr key={row.ticker} className="border-b border-border-subtle/40 hover:bg-bg-hover">
                 <td className="py-1 pl-1 text-text-primary font-semibold">{row.ticker}</td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">
-                  {row.sector || "—"}
-                </td>
-                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">
-                  {usdCompact(row.market_cap_millions, "millions")}
-                </td>
-                <td className="py-1 text-text-primary tabular-nums text-right">
-                  {usd(row.price, 2)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>
-                  {pct(row.perf_day, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>
-                  {pct(row.perf_week, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>
-                  {pct(row.perf_month, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>
-                  {pct(row.perf_year, 1)}
-                </td>
-                <td className={`py-1 tabular-nums text-right text-2xs ${colorClass(row.sma50_pct)}`}>
-                  {pct(row.sma50_pct, 1)}
-                </td>
-                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">
-                  {num(row.rsi14, 0)}
-                </td>
-                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">
-                  {num(row.atr_pct, 1)}
-                </td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">{row.sector || "—"}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{usdCompact(row.market_cap_millions, "millions")}</td>
+                <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
+                <td className={`py-1 tabular-nums text-right text-2xs ${colorClass(row.sma50_pct)}`}>{pct(row.sma50_pct, 1)}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{num(row.rsi14, 0)}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">{num(row.atr_pct, 1)}</td>
               </tr>
             ))}
           </tbody>
@@ -267,16 +229,10 @@ interface StageRow {
 }
 
 const STAGE_DESC: Record<string, string> = {
-  "1A": "Basing low",
-  "1B": "Basing high",
-  "2A": "Early advance",
-  "2B": "Mid advance",
-  "2C": "Strong advance",
-  "3A": "Distribution",
-  "3B": "Topping",
-  "4A": "Early decline",
-  "4B": "Mid decline",
-  "4C": "Strong decline",
+  "1A": "Basing low", "1B": "Basing high",
+  "2A": "Early advance", "2B": "Mid advance", "2C": "Strong advance",
+  "3A": "Distribution", "3B": "Topping",
+  "4A": "Early decline", "4B": "Mid decline", "4C": "Strong decline",
 };
 
 function stageColor(stage: string): { bar: string; text: string } {
@@ -295,10 +251,7 @@ function StageAnalysisCard() {
   const { data } = useQuery({
     queryKey: ["mm-stage-analysis"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stage_analysis_counts_v")
-        .select("*")
-        .order("sort_order");
+      const { data, error } = await supabase.from("stage_analysis_counts_v").select("*").order("sort_order");
       if (error) throw error;
       return (data ?? []) as StageRow[];
     },
@@ -318,25 +271,17 @@ function StageAnalysisCard() {
             Stage Analysis · Weinstein 10 substages
           </span>
         </div>
-        <span className="font-mono text-2xs text-text-dim tabular-nums">
-          {universe.toLocaleString()} stocks
-        </span>
+        <span className="font-mono text-2xs text-text-dim tabular-nums">{universe.toLocaleString()} stocks</span>
       </div>
       <div className="space-y-1.5">
         {data.map((row) => {
           const c = stageColor(row.stage);
           const widthPct = (row.pct / maxPct) * 100;
           return (
-            <div
-              key={row.stage}
-              className="grid grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-2 items-center text-xs font-mono"
-            >
+            <div key={row.stage} className="grid grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-2 items-center text-xs font-mono">
               <div className={`font-semibold ${c.text}`}>{row.stage}</div>
               <div className="h-4 bg-bg-panel rounded-sm overflow-hidden">
-                <div
-                  className={`h-full ${c.bar} transition-all`}
-                  style={{ width: `${widthPct}%` }}
-                />
+                <div className={`h-full ${c.bar} transition-all`} style={{ width: `${widthPct}%` }} />
               </div>
               <div className="text-text-dim text-2xs truncate">{STAGE_DESC[row.stage]}</div>
               <div className="text-right">
@@ -346,6 +291,263 @@ function StageAnalysisCard() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ===== Stockbee Breadth (latest snapshot) =====
+interface StockbeeBreadth {
+  observation_date: string;
+  up_4pct: number;
+  down_4pct: number;
+  ratio5: number;
+  ratio10: number;
+  up_25pct_qtr: number;
+  down_25pct_qtr: number;
+  universe_size: number;
+  t2108: number;
+  sp500_level: number;
+}
+
+function StockbeeBreadthCard() {
+  const { data } = useQuery({
+    queryKey: ["mm-stockbee-latest"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stockbee_breadth_latest_v")
+        .select("*")
+        .maybeSingle();
+      if (error) throw error;
+      return data as StockbeeBreadth | null;
+    },
+    enabled: isSupabaseConfigured,
+  });
+  if (!data) return null;
+
+  const t2108Tone =
+    data.t2108 >= 70 ? "text-accent-red" :
+    data.t2108 >= 50 ? "text-accent-green" :
+    data.t2108 >= 30 ? "text-accent-yellow" :
+    "text-accent-red";
+
+  const ratio5Tone =
+    Number(data.ratio5) >= 1.5 ? "text-accent-green" :
+    Number(data.ratio5) >= 0.9 ? "text-text-primary" :
+    "text-accent-red";
+
+  return (
+    <div className="terminal-card p-4">
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-accent-orange text-sm">⊟</span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
+            Stockbee Breadth
+          </span>
+        </div>
+        <span className="font-mono text-2xs text-text-dim">{data.observation_date}</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+        <div>
+          <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">4% Up / Down</div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-accent-green tabular-nums text-lg font-semibold">{data.up_4pct}</span>
+            <span className="text-text-dim">/</span>
+            <span className="text-accent-red tabular-nums text-lg font-semibold">{data.down_4pct}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">5d A/D Ratio</div>
+          <div className={`tabular-nums text-lg font-semibold ${ratio5Tone}`}>
+            {num(data.ratio5, 2)}
+          </div>
+        </div>
+        <div>
+          <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">25%+ Qtr Up / Dn</div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-accent-green tabular-nums text-lg font-semibold">{data.up_25pct_qtr}</span>
+            <span className="text-text-dim">/</span>
+            <span className="text-accent-red tabular-nums text-lg font-semibold">{data.down_25pct_qtr}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-text-dim text-2xs uppercase tracking-wider mb-1">T2108</div>
+          <div className={`tabular-nums text-lg font-semibold ${t2108Tone}`}>
+            {num(data.t2108, 1)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== Stockbee 4-chart history =====
+interface StockbeeHistoryRow {
+  observation_date: string;
+  up_4pct: number;
+  down_4pct: number;
+  up_25pct_qtr: number;
+  down_25pct_qtr: number;
+  ratio5: number;
+  ratio10: number;
+  t2108: number;
+  sp500_level: number;
+}
+
+function useStockbeeHistory() {
+  return useQuery({
+    queryKey: ["mm-stockbee-history"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stockbee_breadth_history_v")
+        .select("*")
+        .order("observation_date", { ascending: false })
+        .limit(60);
+      if (error) throw error;
+      return ((data ?? []) as StockbeeHistoryRow[]).reverse();
+    },
+    enabled: isSupabaseConfigured,
+  });
+}
+
+type MiniChartType = "ratio5" | "t2108" | "fourpct_net" | "qtr_net";
+
+function MiniChartCard({
+  title, history, type, refLine,
+}: {
+  title: string;
+  history: StockbeeHistoryRow[];
+  type: MiniChartType;
+  refLine?: number;
+}) {
+  const data = history.map((d) => {
+    let value: number;
+    if (type === "ratio5") value = Number(d.ratio5);
+    else if (type === "t2108") value = Number(d.t2108);
+    else if (type === "fourpct_net") value = (d.up_4pct ?? 0) - (d.down_4pct ?? 0);
+    else value = (d.up_25pct_qtr ?? 0) - (d.down_25pct_qtr ?? 0);
+    return { date: d.observation_date, value };
+  });
+
+  const last = data[data.length - 1]?.value ?? 0;
+  const useBar = type === "fourpct_net" || type === "qtr_net";
+  const lineColor = last >= (refLine ?? 0) ? "#3fb950" : "#f85149";
+
+  const displayValue =
+    type === "ratio5" || type === "t2108"
+      ? num(last, 2)
+      : `${last > 0 ? "+" : ""}${Math.round(last)}`;
+
+  const displayColor =
+    type === "ratio5" ? (last >= 1 ? "text-accent-green" : "text-accent-red") :
+    type === "t2108"  ? (last >= 50 ? "text-accent-green" : last >= 30 ? "text-accent-yellow" : "text-accent-red") :
+    last >= 0         ? "text-accent-green" : "text-accent-red";
+
+  return (
+    <div className="terminal-card p-3">
+      <div className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold mb-1">
+        {title}
+      </div>
+      <div className={`font-mono text-base tabular-nums font-semibold ${displayColor}`}>
+        {displayValue}
+      </div>
+      <div className="h-12 mt-1">
+        <ResponsiveContainer width="100%" height="100%">
+          {useBar ? (
+            <BarChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+              <ReferenceLine y={0} stroke="#30363d" strokeWidth={1} />
+              <Bar dataKey="value">
+                {data.map((d, i) => (
+                  <Cell key={i} fill={d.value >= 0 ? "#3fb950" : "#f85149"} />
+                ))}
+              </Bar>
+              <Tooltip
+                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
+                labelStyle={{ color: "#8b949e" }}
+                itemStyle={{ color: "#e6edf3" }}
+                cursor={{ fill: "rgba(48,54,61,0.3)" }}
+                formatter={(v: any) => [v > 0 ? `+${v}` : `${v}`, ""]}
+              />
+            </BarChart>
+          ) : (
+            <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+              {refLine !== undefined && (
+                <ReferenceLine y={refLine} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />
+              )}
+              <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
+                labelStyle={{ color: "#8b949e" }}
+                itemStyle={{ color: "#e6edf3" }}
+                cursor={{ stroke: "#30363d" }}
+                formatter={(v: any) => [num(v, 2), ""]}
+              />
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function StockbeeHistoryCharts() {
+  const { data } = useStockbeeHistory();
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div>
+      <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-2 flex items-baseline gap-2">
+        <span className="text-accent-orange">▦</span>
+        Stockbee · 60-day history
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MiniChartCard title="4% Up − Down" history={data} type="fourpct_net" />
+        <MiniChartCard title="5d A/D Ratio" history={data} type="ratio5" refLine={1} />
+        <MiniChartCard title="25% Qtr Up − Down" history={data} type="qtr_net" />
+        <MiniChartCard title="T2108" history={data} type="t2108" refLine={50} />
+      </div>
+    </div>
+  );
+}
+
+// ===== Stockbee Momentum 50 =====
+function StockbeeMomentum50() {
+  const { data } = useQuery({
+    queryKey: ["mm-momentum50"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stockbee_momentum50_latest_v")
+        .select("*")
+        .maybeSingle();
+      if (error) throw error;
+      return data as { observation_date: string; tickers: string[] } | null;
+    },
+    enabled: isSupabaseConfigured,
+  });
+  if (!data?.tickers || data.tickers.length === 0) return null;
+
+  return (
+    <div className="terminal-card p-4">
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-accent-orange text-sm">⚡</span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
+            Stockbee Momentum 50
+          </span>
+        </div>
+        <span className="font-mono text-2xs text-text-dim">
+          {data.observation_date} · {data.tickers.length} tickers
+        </span>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1.5">
+        {data.tickers.map((t) => (
+          <div
+            key={t}
+            className="font-mono text-xs text-text-primary font-semibold bg-bg-panel rounded px-2 py-1 text-center hover:bg-bg-hover transition-colors"
+          >
+            {t}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -366,12 +568,19 @@ export default function MarketMetrics() {
       <PinnedSITBanner />
       <KeyMetricsGrid />
 
+      <BreadthBars universes={["NQ100", "SPY500", "DJIA"]} title="Breadth Bars · Major Indexes" icon="▌" />
+      <BreadthBars universes={["RUS2000", "$1B+"]} title="Breadth Bars · Small-cap / Liquid" icon="▌" />
+
       <div className="grid lg:grid-cols-2 gap-3">
         <SectorGrid />
         <StageAnalysisCard />
       </div>
 
       <WatchlistTable />
+
+      <StockbeeBreadthCard />
+      <StockbeeHistoryCharts />
+      <StockbeeMomentum50 />
     </div>
   );
 }
