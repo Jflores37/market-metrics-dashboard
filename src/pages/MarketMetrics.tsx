@@ -1,3 +1,5 @@
+import { BreadthBars } from "@/components/mm/BreadthBars";
+import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
 import { useQuery } from "@tanstack/react-query";
 import {
   LineChart, Line, BarChart, Bar, Cell, ReferenceLine, Tooltip, ResponsiveContainer,
@@ -577,10 +579,10 @@ export default function MarketMetrics() {
       </div>
 
       <WatchlistTable />
-
       <StockbeeBreadthCard />
       <StockbeeHistoryCharts />
       <StockbeeMomentum50 />
+      <IndustryThemeBlocks />
     </div>
   );
 }
