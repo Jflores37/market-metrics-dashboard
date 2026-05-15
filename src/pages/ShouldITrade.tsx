@@ -1,53 +1,50 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { num, colorClass } from "@/lib/format";
+import { num, pct, colorClass } from "@/lib/format";
 
-type Mode = "swing" | "day";
-type Interp = "healthy" | "moderate" | "weakening" | "risk-off" | "unknown";
-
+// ===== Types =====
+type BadgeTone = "green" | "red" | "yellow" | "gray";
+interface DetailRow {
+  label: string;
+  value: string;
+  badge?: string | null;
+  badgeTone?: BadgeTone;
+}
 interface SITRow {
   snapshot_date: string;
-  mode: Mode;
-  computed_at: string;
-  decision: "YES" | "CAUTION" | "NO";
+  decision: string;
   market_quality_score: number;
   execution_window_score: number | null;
-  vol_score: number | null;
-  vol_weight: number | null;
-  vol_interpretation: Interp | null;
-  trend_score: number | null;
-  trend_weight: number | null;
-  trend_interpretation: Interp | null;
-  breadth_score: number | null;
-  breadth_weight: number | null;
-  breadth_interpretation: Interp | null;
-  momentum_score: number | null;
-  momentum_weight: number | null;
-  momentum_interpretation: Interp | null;
-  macro_score: number | null;
-  macro_weight: number | null;
-  macro_interpretation: Interp | null;
-  exec_breakouts_status: string | null;
-  exec_breakouts_detail: string | null;
-  exec_leaders_status: string | null;
-  exec_leaders_detail: string | null;
-  exec_pullbacks_status: string | null;
-  exec_pullbacks_detail: string | null;
-  exec_followthrough_status: string | null;
-  exec_followthrough_detail: string | null;
+  vol_score: number | null; vol_weight: number | null;
+  trend_score: number | null; trend_weight: number | null;
+  breadth_score: number | null; breadth_weight: number | null;
+  momentum_score: number | null; momentum_weight: number | null;
+  macro_score: number | null; macro_weight: number | null;
+  exec_breakouts_status: string | null; exec_breakouts_detail: string | null;
+  exec_leaders_status: string | null; exec_leaders_detail: string | null;
+  exec_pullbacks_status: string | null; exec_pullbacks_detail: string | null;
+  exec_followthrough_status: string | null; exec_followthrough_detail: string | null;
   narrative_text: string | null;
   suggested_action: string | null;
+  raw_inputs: {
+    volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null };
+    trend?: { spy_above_20: boolean | null; spy_above_50: boolean | null; spy_above_200: boolean | null; qqq_above_50: boolean | null; regime: string };
+    breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; new_highs: number | null; new_lows: number | null };
+    momentum?: { sectors: Array<{ ticker: string; chg: number | null }>; top3: Array<{ ticker: string; chg: number | null }>; bottom3: Array<{ ticker: string; chg: number | null }>; spread: number | null };
+    macro?: { tnx: number | null; tnx_5d_trend: number | null };
+  };
 }
+interface SectorRow { ticker: string; sector_label: string | null; perf_day: number | null; is_benchmark: boolean }
 
-function useShouldITrade(mode: Mode) {
+// ===== Queries =====
+function useSIT() {
   return useQuery({
-    queryKey: ["sit-full", mode],
+    queryKey: ["sit-swing-full"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("should_i_trade_latest_v")
         .select("*")
-        .eq("mode", mode)
+        .eq("mode", "swing")
         .maybeSingle();
       if (error) throw error;
       return data as SITRow | null;
@@ -55,256 +52,108 @@ function useShouldITrade(mode: Mode) {
     enabled: isSupabaseConfigured,
   });
 }
-
-const decisionTextColor = (d: string) =>
-  d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
-
-const interpretationLabel = (interp: Interp | null | undefined) => {
-  if (!interp) return "—";
-  if (interp === "risk-off") return "Risk-off";
-  return interp[0].toUpperCase() + interp.slice(1);
-};
-
-const interpretationDot = (interp: Interp | null | undefined) => {
-  switch (interp) {
-    case "healthy": return "bg-accent-green";
-    case "moderate": return "bg-accent-blue";
-    case "weakening": return "bg-accent-yellow";
-    case "risk-off": return "bg-accent-red";
-    default: return "bg-text-dim";
-  }
-};
-
-const factorColorClasses = (status: string | null | undefined) => {
-  if (!status) return { dot: "bg-text-dim", text: "text-text-dim" };
-  const s = status.toLowerCase();
-  if (s === "yes" || s === "strong") return { dot: "bg-accent-green", text: "text-accent-green" };
-  if (s === "no" || s === "weak") return { dot: "bg-accent-red", text: "text-accent-red" };
-  return { dot: "bg-accent-yellow", text: "text-accent-yellow" };
-};
-
-function scoreBarColor(score: number | null | undefined): string {
-  if (score == null) return "bg-text-dim";
-  if (score >= 80) return "bg-accent-green";
-  if (score >= 65) return "bg-accent-blue";
-  if (score >= 40) return "bg-accent-yellow";
-  return "bg-accent-red";
+function useSectors() {
+  return useQuery({
+    queryKey: ["sit-sectors"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sector_etf_latest_v")
+        .select("ticker, sector_label, perf_day, is_benchmark");
+      if (error) throw error;
+      return ((data ?? []) as SectorRow[]).filter((s) => !s.is_benchmark);
+    },
+    enabled: isSupabaseConfigured,
+  });
 }
 
-function CategoryRow({
-  name, weight, score, interpretation,
-}: {
-  name: string;
-  weight: number | null;
-  score: number | null;
-  interpretation: Interp | null;
-}) {
+// ===== Style helpers =====
+const TONE_BG: Record<BadgeTone, string> = {
+  green: "bg-accent-green/15 text-accent-green",
+  red: "bg-accent-red/15 text-accent-red",
+  yellow: "bg-accent-yellow/15 text-accent-yellow",
+  gray: "bg-text-dim/15 text-text-secondary",
+};
+const TONE_DOT: Record<BadgeTone, string> = {
+  green: "bg-accent-green",
+  red: "bg-accent-red",
+  yellow: "bg-accent-yellow",
+  gray: "bg-text-dim",
+};
+const scoreColor = (s: number | null) => s == null ? "text-text-dim" : s >= 80 ? "text-accent-green" : s >= 60 ? "text-accent-yellow" : "text-accent-red";
+const scoreBg = (s: number | null) => s == null ? "bg-text-dim" : s >= 80 ? "bg-accent-green" : s >= 60 ? "bg-accent-yellow" : "bg-accent-red";
+const decBorder = (d: string) => d === "YES" ? "border-accent-green" : d === "CAUTION" ? "border-accent-yellow" : "border-accent-red";
+const decText = (d: string) => d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
+
+// ===== Gauge =====
+function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
+  const v = value == null ? 0 : Math.max(0, Math.min(100, Number(value)));
+  const cx = size / 2; const cy = size / 2;
+  const r = size / 2 - 8; const sw = 7;
+  const c = 2 * Math.PI * r;
+  const dash = (v / 100) * c;
+  const color = v >= 80 ? "#3fb950" : v >= 60 ? "#d29922" : "#f85149";
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c2128" strokeWidth={sw} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
+        strokeDasharray={`${dash.toFixed(2)} ${c.toFixed(2)}`}
+        strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`} />
+      <text x={cx} y={cy - 2} textAnchor="middle" dominantBaseline="middle"
+        fill="#e6edf3" fontFamily="JetBrains Mono, monospace" fontSize={26} fontWeight={700}>
+        {Math.round(v)}
+      </text>
+      <text x={cx} y={cy + 17} textAnchor="middle" fill="#6e7681"
+        fontFamily="JetBrains Mono, monospace" fontSize={9}>/ 100</text>
+    </svg>
+  );
+}
+
+// ===== Mini score chip (5 in hero row) =====
+function ScoreChip({ icon, name, score }: { icon: string; name: string; score: number | null }) {
+  const v = score == null ? 0 : Number(score);
+  return (
+    <div className="flex flex-col gap-1.5 text-center min-w-[80px]">
+      <div className="text-accent-orange text-sm">{icon}</div>
+      <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">{name}</div>
+      <div className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(score)}`}>{num(score, 0)}</div>
+      <div className="h-1 bg-bg-panel rounded-full overflow-hidden">
+        <div className={`h-full ${scoreBg(score)}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ===== Category detail panel =====
+function CategoryPanel({ icon, name, score, rows }: { icon: string; name: string; score: number | null; rows: DetailRow[] }) {
+  return (
+    <div className="terminal-card p-4 flex flex-col">
+      <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-sm text-text-primary">{name}</span>
-          <span className="text-2xs text-text-dim mono">
-            {weight != null ? `${Math.round(Number(weight) * 100)}%` : ""}
-          </span>
+          <span className="text-accent-orange text-sm">{icon}</span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">{name}</span>
         </div>
-        <div className="flex items-baseline gap-3">
-          <span className="text-2xs mono uppercase tracking-wider flex items-center gap-1.5">
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${interpretationDot(interpretation)}`} />
-            <span className="text-text-secondary">{interpretationLabel(interpretation)}</span>
-          </span>
-          <span className="font-mono text-sm text-text-primary font-semibold tabular-nums w-10 text-right">
-            {num(score, 1)}
-          </span>
-        </div>
+        <span className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(score)}`}>{num(score, 0)}</span>
       </div>
-      <div className="h-1.5 bg-bg-panel rounded-full overflow-hidden">
-        <div
-          className={`h-full ${scoreBarColor(score)} transition-all`}
-          style={{ width: `${Math.max(0, Math.min(100, Number(score) || 0))}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function FactorBadge({
-  label, status, detail,
-}: {
-  label: string;
-  status: string | null;
-  detail: string | null;
-}) {
-  const { dot, text } = factorColorClasses(status);
-  return (
-    <div className="terminal-panel rounded px-3 py-2.5 flex flex-col gap-1">
-      <div className="text-2xs mono text-text-dim uppercase tracking-wider">{label}</div>
-      <div className="flex items-baseline gap-2">
-        <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} />
-        <span className={`font-mono text-sm font-semibold ${text}`}>{status ?? "—"}</span>
-      </div>
-      {detail && (
-        <div className="text-2xs text-text-secondary mono">{detail}</div>
-      )}
-    </div>
-  );
-}
-
-function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  return (
-    <div className="inline-flex items-center bg-bg-panel rounded-md p-0.5 border border-border-subtle">
-      {(["swing", "day"] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => onChange(m)}
-          className={`px-3 py-1 text-xs font-mono uppercase tracking-wider transition-colors rounded ${
-            mode === m
-              ? "bg-bg-card text-accent-orange"
-              : "text-text-secondary hover:text-text-primary"
-          }`}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-export default function ShouldITrade() {
-  const [mode, setMode] = useState<Mode>("swing");
-  const { data, isLoading, error } = useShouldITrade(mode);
-
-  return (
-    <div className="space-y-6">
-      <header className="flex items-baseline justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-mono text-xl font-bold tracking-tight">Should I Trade</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            5-factor market quality score · execution window · {mode} mode
-          </p>
-        </div>
-        <ModeToggle mode={mode} onChange={setMode} />
-      </header>
-
-      {!isSupabaseConfigured && (
-        <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">
-          Supabase not configured.
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="terminal-card p-6">
-          <div className="font-mono text-xs text-text-dim">Loading…</div>
-        </div>
-      )}
-
-      {error && (
-        <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">
-          {String((error as Error).message ?? error)}
-        </div>
-      )}
-
-      {data && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-6">
-            <div className="terminal-card p-6">
-              <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-3">
-                Decision · {mode} mode
-              </div>
-              <div className={`font-mono text-5xl font-bold ${decisionTextColor(data.decision)} mb-3`}>
-                {data.decision}
-              </div>
-              {data.suggested_action && (
-                <div className="text-sm text-text-secondary mt-2 leading-relaxed">
-                  {data.suggested_action}
-                </div>
-              )}
-              <div className="text-2xs text-text-dim mono pt-3 border-t border-border-subtle mt-4">
-                as of {data.snapshot_date} · re-computed{" "}
-                {new Date(data.computed_at).toLocaleTimeString([], {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </div>
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div key={i} className="flex items-center justify-between gap-1.5 text-2xs">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <span className={`inline-block w-1 h-1 rounded-full shrink-0 ${TONE_DOT[row.badgeTone ?? "gray"]}`} />
+              <span className="text-text-dim mono truncate">{row.label}</span>
             </div>
-
-            <div className="terminal-card p-5 space-y-3">
-              <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-                Market Quality Score
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono text-4xl font-bold text-text-primary">
-                  {num(data.market_quality_score, 1)}
-                </span>
-                <span className="font-mono text-xs text-text-dim">/ 100</span>
-              </div>
-              <div className="h-2 bg-bg-panel rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${scoreBarColor(data.market_quality_score)} transition-all`}
-                  style={{ width: `${Math.max(0, Math.min(100, Number(data.market_quality_score) || 0))}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="terminal-card p-5 space-y-3">
-              <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-                Execution Window Score
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`font-mono text-3xl font-bold ${colorClass((data.execution_window_score ?? 50) - 50)}`}>
-                  {num(data.execution_window_score, 1)}
-                </span>
-                <span className="font-mono text-xs text-text-dim">/ 100</span>
-              </div>
-              <div className="h-2 bg-bg-panel rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${scoreBarColor(data.execution_window_score)} transition-all`}
-                  style={{ width: `${Math.max(0, Math.min(100, Number(data.execution_window_score) || 0))}%` }}
-                />
-              </div>
-              <div className="text-2xs text-text-dim mono">
-                Are conditions right for new entries to work *today*?
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2 space-y-6">
-            <div className="terminal-card p-5 space-y-4">
-              <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-                Five-factor category scores
-              </div>
-              <CategoryRow name="Volatility" weight={data.vol_weight} score={data.vol_score} interpretation={data.vol_interpretation} />
-              <CategoryRow name="Momentum" weight={data.momentum_weight} score={data.momentum_score} interpretation={data.momentum_interpretation} />
-              <CategoryRow name="Trend" weight={data.trend_weight} score={data.trend_score} interpretation={data.trend_interpretation} />
-              <CategoryRow name="Breadth" weight={data.breadth_weight} score={data.breadth_score} interpretation={data.breadth_interpretation} />
-              <CategoryRow name="Macro" weight={data.macro_weight} score={data.macro_score} interpretation={data.macro_interpretation} />
-            </div>
-
-            <div className="terminal-card p-5 space-y-3">
-              <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-                Execution window — four factor badges
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <FactorBadge label="Breakouts" status={data.exec_breakouts_status} detail={data.exec_breakouts_detail} />
-                <FactorBadge label="Leaders" status={data.exec_leaders_status} detail={data.exec_leaders_detail} />
-                <FactorBadge label="Pullbacks" status={data.exec_pullbacks_status} detail={data.exec_pullbacks_detail} />
-                <FactorBadge label="Follow-thru" status={data.exec_followthrough_status} detail={data.exec_followthrough_detail} />
-              </div>
-            </div>
-
-            {data.narrative_text && (
-              <div className="terminal-card p-5 space-y-2">
-                <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
-                  Narrative
-                </div>
-                <div className="text-sm text-text-secondary leading-relaxed font-mono">
-                  {data.narrative_text}
-                </div>
-              </div>
+            <span className="font-mono text-text-primary tabular-nums shrink-0">{row.value}</span>
+            {row.badge && (
+              <span className={`px-1.5 py-0.5 rounded text-2xs mono font-semibold shrink-0 ${TONE_BG[row.badgeTone ?? "gray"]}`}>
+                {row.badge}
+              </span>
             )}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
+
+// ===== Row builders =====
+function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
+  const v = r.volatility;
