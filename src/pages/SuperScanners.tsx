@@ -6,6 +6,7 @@ import { useSortable } from "@/lib/sortable";
 import CsvButton from "@/components/ui/CsvButton";
 import WlButton from "@/components/ui/WlButton";
 import SortableHeader from "@/components/ui/SortableHeader";
+import { TickerLink } from "@/components/TickerChartModal";
 
 // ===== Types =====
 interface ScannerSummary {
@@ -238,7 +239,7 @@ function ScannerCard({
                 >
                   <td className="py-1 pl-2 text-text-dim tabular-nums">{row.rank}</td>
                   <td className="py-1">
-                    <div className="text-text-primary font-semibold">{row.ticker}</div>
+                    <TickerLink ticker={row.ticker} />
                     {row.company && (
                       <div className="text-text-dim text-2xs truncate max-w-[140px]">
                         {row.company}
@@ -362,7 +363,7 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
                   <td className="py-1 pl-2 text-text-secondary text-2xs tabular-nums">{row.earnings_date}</td>
                   <td className="py-1 text-text-dim text-2xs">{row.earnings_time ?? "—"}</td>
                   <td className="py-1">
-                    <div className="text-text-primary font-semibold">{row.ticker}</div>
+                    <TickerLink ticker={row.ticker} />
                     {row.company && (
                       <div className="text-text-dim text-2xs truncate max-w-[140px]">
                         {row.company}
