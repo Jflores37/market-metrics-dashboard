@@ -13,6 +13,14 @@ interface KeyMetricRow {
   pct: number | null;
 }
 
+// Named type alias — keeps the Map generic on a single line below so
+// mobile paste doesn't strip the `<` after a newline.
+type MetricEntry = {
+  label: string;
+  order: number;
+  cells: Map<string, KeyMetricRow>;
+};
+
 const UNIVERSES = ["NQ100", "SPY500", "DJIA", "RUS2000", "$1B+"];
 
 function pctTextColor(pct: number | null): string {
@@ -98,10 +106,7 @@ export default function KeyMetricsGrid() {
   }
 
   // Pivot: one row per metric, with a cell map keyed by universe
-  const metricMap = new Map
-    string,
-    { label: string; order: number; cells: Map<string, KeyMetricRow> }
-  >();
+  const metricMap = new Map<string, MetricEntry>();
   for (const row of data) {
     if (!metricMap.has(row.metric_id)) {
       metricMap.set(row.metric_id, {
