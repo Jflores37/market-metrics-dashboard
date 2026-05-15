@@ -14,6 +14,7 @@ import {
   referenceLineStroke,
 } from "@/lib/chartTheme";
 import { TickerLink } from "@/components/TickerChartModal";
+import CsvButton from "@/components/ui/CsvButton";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
 import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
@@ -181,7 +182,27 @@ function WatchlistTable() {
           <span className="text-accent-cyan text-sm signal-glow-cyan">★</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Watchlist</span>
         </div>
-        <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
+          <CsvButton
+            filename="watchlist.csv"
+            rows={data}
+            columns={[
+              { header: "Ticker",   value: (r) => r.ticker },
+              { header: "Sector",   value: (r) => r.sector ?? "" },
+              { header: "Industry", value: (r) => r.industry ?? "" },
+              { header: "Price",    value: (r) => r.price },
+              { header: "MarketCapM", value: (r) => r.market_cap_millions },
+              { header: "PerfDay",  value: (r) => r.perf_day },
+              { header: "PerfWeek", value: (r) => r.perf_week },
+              { header: "PerfMonth",value: (r) => r.perf_month },
+              { header: "PerfYear", value: (r) => r.perf_year },
+              { header: "VsSMA50",  value: (r) => r.sma50_pct },
+              { header: "RSI14",    value: (r) => r.rsi14 },
+              { header: "ATRpct",   value: (r) => r.atr_pct },
+            ]}
+          />
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs font-mono min-w-[760px]">

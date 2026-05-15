@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
+import { finvizScreenerUrl } from "@/lib/finviz";
 
 interface KeyMetricRow {
   universe_id: string;
@@ -74,6 +75,9 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
     );
   }
   const total = row.above_count + (row.below_count ?? 0);
+  const aboveUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "above");
+  const belowUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "below");
+  const linkCls = "hover:text-accent-cyan hover:underline transition-colors";
   return (
     <td className="py-1.5 px-2 text-right align-top">
       <div className="space-y-0.5">
@@ -81,7 +85,21 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
           {row.pct != null ? `${num(row.pct, 0)}%` : "—"}
         </div>
         <div className="font-mono text-2xs text-text-dim tabular-nums">
-          {row.above_count}/{total}
+          {aboveUrl ? (
+            <a href={aboveUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              {row.above_count}
+            </a>
+          ) : (
+            row.above_count
+          )}
+          {"/"}
+          {belowUrl && (row.below_count ?? 0) > 0 ? (
+            <a href={belowUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              {total}
+            </a>
+          ) : (
+            total
+          )}
         </div>
         <div className="h-0.5 bg-bg-panel rounded-full overflow-hidden">
           <div

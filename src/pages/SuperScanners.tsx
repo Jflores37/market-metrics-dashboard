@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
+import CsvButton from "@/components/ui/CsvButton";
 
 // ===== Types =====
 interface ScannerSummary {
@@ -394,6 +395,48 @@ export default function SuperScanners() {
                     {activeScanner.source || "—"}
                     {activeScanner.snapshot_date ? ` · ${activeScanner.snapshot_date}` : ""}
                   </span>
+                  {isEarnings ? (
+                    <CsvButton
+                      filename={`earnings-this-week-${activeScanner.snapshot_date ?? "latest"}.csv`}
+                      rows={earningsRows ?? []}
+                      columns={[
+                        { header: "EarningsDate", value: (r) => r.earnings_date },
+                        { header: "EarningsTime", value: (r) => r.earnings_time ?? "" },
+                        { header: "Ticker",       value: (r) => r.ticker },
+                        { header: "Company",      value: (r) => r.company ?? "" },
+                        { header: "Sector",       value: (r) => r.sector ?? "" },
+                        { header: "MarketCapM",   value: (r) => r.market_cap_millions },
+                        { header: "Price",        value: (r) => r.price },
+                        { header: "PerfDay",      value: (r) => r.perf_day },
+                        { header: "PerfWeek",     value: (r) => r.perf_week },
+                        { header: "PerfMonth",    value: (r) => r.perf_month },
+                        { header: "PerfYear",     value: (r) => r.perf_year },
+                        { header: "RSI14",        value: (r) => r.rsi14 },
+                      ]}
+                    />
+                  ) : (
+                    <CsvButton
+                      filename={`${activeScanner.scanner_id}-${activeScanner.snapshot_date ?? "latest"}.csv`}
+                      rows={results ?? []}
+                      columns={[
+                        { header: "Rank",       value: (r) => r.rank },
+                        { header: "Ticker",     value: (r) => r.ticker },
+                        { header: "Company",    value: (r) => r.company ?? "" },
+                        { header: "Sector",     value: (r) => r.sector ?? "" },
+                        { header: "Industry",   value: (r) => r.industry ?? "" },
+                        { header: "Price",      value: (r) => r.price },
+                        { header: "MarketCapM", value: (r) => r.market_cap_millions },
+                        { header: "Volume",     value: (r) => r.volume },
+                        { header: "RelVolume",  value: (r) => r.rel_volume },
+                        { header: "PerfDay",    value: (r) => r.perf_day },
+                        { header: "PerfWeek",   value: (r) => r.perf_week },
+                        { header: "PerfMonth",  value: (r) => r.perf_month },
+                        { header: "PerfQuarter",value: (r) => r.perf_quarter },
+                        { header: "PerfYear",   value: (r) => r.perf_year },
+                        { header: "RSI14",      value: (r) => r.rsi14 },
+                      ]}
+                    />
+                  )}
                   <button
                     onClick={refreshActiveScanner}
                     aria-label="Refresh scanner results"
