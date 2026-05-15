@@ -4,6 +4,15 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
+import {
+  chartColors,
+  tooltipContentStyle,
+  tooltipLabelStyle,
+  tooltipItemStyle,
+  tooltipCursor,
+  tooltipCursorFill,
+  referenceLineStroke,
+} from "@/lib/chartTheme";
 import { TickerLink } from "@/components/TickerChartModal";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
@@ -408,7 +417,7 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
 
   const last = data[data.length - 1]?.value ?? 0;
   const useBar = type === "fourpct_net" || type === "qtr_net";
-  const lineColor = last >= (refLine ?? 0) ? "#3fb950" : "#f85149";
+  const lineColor = last >= (refLine ?? 0) ? chartColors.green : chartColors.red;
   const displayValue = type === "ratio5" || type === "t2108" ? num(last, 2) : `${last > 0 ? "+" : ""}${Math.round(last)}`;
   const displayColor =
     type === "ratio5" ? (last >= 1 ? "text-accent-green" : "text-accent-red") :
@@ -423,27 +432,27 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
         <ResponsiveContainer width="100%" height="100%">
           {useBar ? (
             <BarChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              <ReferenceLine y={0} stroke="#30363d" strokeWidth={1} />
+              <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} />
               <Bar dataKey="value">
                 {data.map((d, i) => (
-                  <Cell key={i} fill={d.value >= 0 ? "#3fb950" : "#f85149"} />
+                  <Cell key={i} fill={d.value >= 0 ? chartColors.green : chartColors.red} />
                 ))}
               </Bar>
               <Tooltip
-                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
-                cursor={{ fill: "rgba(48,54,61,0.3)" }}
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle}
+                cursor={tooltipCursorFill}
                 formatter={(v: any) => [v > 0 ? `+${v}` : `${v}`, ""]}
               />
             </BarChart>
           ) : (
             <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              {refLine !== undefined && <ReferenceLine y={refLine} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />}
+              {refLine !== undefined && <ReferenceLine y={refLine} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />}
               <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
-                cursor={{ stroke: "#30363d" }}
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle}
+                cursor={tooltipCursor}
                 formatter={(v: any) => [num(v, 2), ""]}
               />
             </LineChart>

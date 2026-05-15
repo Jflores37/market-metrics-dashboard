@@ -5,6 +5,7 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
+import { chartColors, axisTickStyle, axisStroke, referenceLineStroke } from "@/lib/chartTheme";
 
 interface LandscapeRow {
   ticker: string;
@@ -21,15 +22,17 @@ interface LandscapeRow {
   rsi14: number | null;
 }
 
+// Per-sector identifying colors. Chosen for categorical distinction; tones
+// shifted to align with the new terminal palette (cyan/green/amber/etc.).
 const SECTOR_COLOR: Record<string, string> = {
-  Technology: "#58a6ff",
+  Technology: chartColors.cyan,
   Healthcare: "#ff7b72",
-  Financial: "#3fb950",
+  Financial: chartColors.green,
   "Consumer Cyclical": "#f0883e",
   "Communication Services": "#b87cff",
-  Industrials: "#d29922",
-  "Consumer Defensive": "#8b949e",
-  Energy: "#f85149",
+  Industrials: chartColors.amber,
+  "Consumer Defensive": chartColors.textSecondary,
+  Energy: chartColors.red,
   "Real Estate": "#88d3e6",
   Utilities: "#56d364",
   "Basic Materials": "#ddb544",
@@ -156,7 +159,7 @@ export default function SP500Landscape() {
       <div className="flex flex-wrap gap-2 mb-3 font-mono text-2xs">
         {sectors.map((s) => (
           <span key={s} className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLOR[s] || "#8b949e" }} />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: SECTOR_COLOR[s] || chartColors.textSecondary }} />
             <span className="text-text-secondary">{s}</span>
           </span>
         ))}
@@ -165,21 +168,21 @@ export default function SP500Landscape() {
       <div className="h-96">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 20, right: 20, bottom: 30, left: 30 }}>
-            <ReferenceLine y={0} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />
-            <ReferenceLine x={0} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />
+            <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
+            <ReferenceLine x={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <XAxis
               type="number"
               dataKey={xKey}
-              tick={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", fill: "#6e7681" }}
-              stroke="#30363d"
-              label={{ value: xLabel, fontSize: 10, fill: "#6e7681", fontFamily: "JetBrains Mono, monospace", position: "insideBottom", offset: -10 }}
+              tick={axisTickStyle}
+              stroke={axisStroke}
+              label={{ value: xLabel, fontSize: 10, fill: chartColors.textDim, fontFamily: "JetBrains Mono, monospace", position: "insideBottom", offset: -10 }}
             />
             <YAxis
               type="number"
               dataKey={yKey}
-              tick={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", fill: "#6e7681" }}
-              stroke="#30363d"
-              label={{ value: yLabel, fontSize: 10, fill: "#6e7681", fontFamily: "JetBrains Mono, monospace", angle: -90, position: "insideLeft", offset: 10 }}
+              tick={axisTickStyle}
+              stroke={axisStroke}
+              label={{ value: yLabel, fontSize: 10, fill: chartColors.textDim, fontFamily: "JetBrains Mono, monospace", angle: -90, position: "insideLeft", offset: 10 }}
             />
             <ZAxis type="number" dataKey="z" range={[20, 400]} />
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
@@ -189,9 +192,9 @@ export default function SP500Landscape() {
                 key={s}
                 name={s}
                 data={dataWithZ.filter((d) => d.sector === s)}
-                fill={SECTOR_COLOR[s] || "#8b949e"}
+                fill={SECTOR_COLOR[s] || chartColors.textSecondary}
                 fillOpacity={0.65}
-                stroke={SECTOR_COLOR[s] || "#8b949e"}
+                stroke={SECTOR_COLOR[s] || chartColors.textSecondary}
                 strokeOpacity={0.85}
               />
             ))}

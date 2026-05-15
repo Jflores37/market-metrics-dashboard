@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, colorClass } from "@/lib/format";
+import { chartColors } from "@/lib/chartTheme";
 import CategoryPanel, {
   type DetailRow,
   type BadgeTone,
@@ -76,18 +77,18 @@ function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
   const r = size / 2 - 8; const sw = 7;
   const c = 2 * Math.PI * r;
   const dash = (v / 100) * c;
-  const color = v >= 80 ? "#3fb950" : v >= 60 ? "#d29922" : "#f85149";
+  const color = v >= 80 ? chartColors.green : v >= 60 ? chartColors.amber : chartColors.red;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c2128" strokeWidth={sw} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={chartColors.border} strokeWidth={sw} />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${dash.toFixed(2)} ${c.toFixed(2)}`}
         strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`} />
       <text x={cx} y={cy - 2} textAnchor="middle" dominantBaseline="middle"
-        fill="#e6edf3" fontFamily="JetBrains Mono, monospace" fontSize={26} fontWeight={700}>
+        fill={chartColors.textPrimary} fontFamily="JetBrains Mono, monospace" fontSize={26} fontWeight={700}>
         {Math.round(v)}
       </text>
-      <text x={cx} y={cy + 17} textAnchor="middle" fill="#6e7681"
+      <text x={cx} y={cy + 17} textAnchor="middle" fill={chartColors.textDim}
         fontFamily="JetBrains Mono, monospace" fontSize={9}>/ 100</text>
     </svg>
   );
