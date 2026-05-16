@@ -5,38 +5,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Bloomberg/CRT terminal palette (HSL-derived; see plan)
+        // Terminal palette — exact HSL values mirrored from the reference
+        // repo's assets/macro_terminal.css :root (pakkiraju/Market-Metrics-,
+        // finviz-elite). Using hsl() literals keeps rendering pixel-identical
+        // to the reference rather than approximate hex.
         bg: {
-          DEFAULT: "#0a0d12",   // hsl(220 20% 4%)
-          card: "#0e1218",      // hsl(220 20% 6%)
-          panel: "#10141c",     // hsl(220 20% 7%)
-          surface2: "#0c0f15",  // hsl(220 20% 5%) — gradient bottom stop
-          hover: "#171c25",
+          DEFAULT: "hsl(220 20% 4%)",   // --background / --term-bg
+          card: "hsl(220 20% 6%)",      // --card
+          panel: "hsl(220 20% 7%)",     // --term-surface
+          surface2: "hsl(220 20% 5%)",  // --term-surface2 / gradient stop
+          hover: "hsl(220 20% 9%)",     // derived: one step above card
         },
         border: {
-          DEFAULT: "#1f242f",   // hsl(220 15% 14%)
-          subtle: "#1a1f29",    // hsl(220 15% 12%)
+          DEFAULT: "hsl(220 15% 14%)",  // --term-border
+          subtle: "hsl(220 15% 12%)",   // reference table row divider
         },
         text: {
-          primary: "#7ee3a4",   // hsl(142 70% 70%) — green-tinted
-          secondary: "#7a8092", // hsl(220 10% 50%)
-          dim: "#5e6473",       // hsl(220 10% 40%)
+          primary: "hsl(142 70% 70%)",   // --foreground (green-tinted)
+          secondary: "hsl(220 10% 50%)", // --muted-foreground
+          dim: "hsl(220 10% 40%)",       // --term-dim
         },
         accent: {
           orange: "#ff8c00",
-          green: "#3fcf6b",
-          red: "#e04444",
+          green: "hsl(142 70% 55%)",  // --term-green
+          red: "hsl(0 72% 55%)",      // --term-red
           yellow: "#d29922",
           blue: "#58a6ff",
           purple: "#bc8cff",
-          cyan: "#34c5d6",
-          amber: "#f0b424",
+          cyan: "hsl(185 70% 55%)",   // --term-cyan
+          amber: "hsl(45 90% 55%)",   // --term-amber
         },
         signal: {
-          hawkish: "#e04444",
-          dovish: "#3fcf6b",
-          neutral: "#7a8092",
-          tightening: "#f0b424",
+          hawkish: "hsl(0 72% 55%)",     // --term-red
+          dovish: "hsl(142 70% 55%)",    // --term-green
+          neutral: "hsl(220 10% 50%)",   // --muted-foreground
+          tightening: "hsl(45 90% 55%)", // --term-amber
         },
       },
       fontFamily: {

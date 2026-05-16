@@ -4,8 +4,9 @@
 
 @layer base {
   html, body {
-    background-color: #0a0d12;
-    color: #7ee3a4;
+    /* Exact reference :root values (assets/macro_terminal.css) */
+    background-color: hsl(220 20% 4%);
+    color: hsl(142 70% 70%);
     overscroll-behavior: none;
   }
 
@@ -24,14 +25,14 @@
     height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #0a0d12;
+    background: hsl(220 20% 4%);
   }
   ::-webkit-scrollbar-thumb {
-    background: #1f242f;
+    background: hsl(220 15% 14%);
     border-radius: 2px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #2a3140;
+    background: hsl(220 15% 20%);
   }
 
   .num, .mono {
