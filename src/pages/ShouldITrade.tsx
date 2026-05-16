@@ -68,6 +68,34 @@ function useSectors() {
   });
 }
 
+// USD Broad Index (FRED DTWEXBGS) — DXY proxy. raw_inputs.macro doesn't
+// carry it, so read macro_observations directly: latest level + ~1-week
+// (5 business day) % change for a direction read.
+function useDxy() {
+  return useQuery({
+    queryKey: ["sit-dxy"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("macro_observations")
+        .select("observation_date, value")
+        .eq("series_id", "DTWEXBGS")
+        .order("observation_date", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      const rows = (data ?? []) as { observation_date: string; value: number | null }[];
+      if (rows.length === 0) return null;
+      const latest = rows[0]?.value != null ? Number(rows[0].value) : null;
+      const prior = rows[5]?.value != null ? Number(rows[5].value) : null;
+      const pctChg =
+        latest != null && prior != null && prior !== 0
+          ? ((latest - prior) / prior) * 100
+          : null;
+      return { latest, pctChg };
+    },
+    enabled: isSupabaseConfigured,
+  });
+}
+
 const decBorder = (d: string) => d === "YES" ? "border-accent-green" : d === "CAUTION" ? "border-accent-yellow" : "border-accent-red";
 const decText = (d: string) => d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
 
@@ -241,13 +269,28 @@ function buildMomentum(r: SITRow["raw_inputs"], sectorLabel: (t: string) => stri
   ];
 }
 
-function buildMacro(r: SITRow["raw_inputs"]): DetailRow[] {
+function buildMacro(
+  r: SITRow["raw_inputs"],
+  dxy: { latest: number | null; pctChg: number | null } | null,
+): DetailRow[] {
   const m = r.macro;
   const yld = m?.tnx ?? null;
   const tr = m?.tnx_5d_trend ?? null;
+  // Rising USD = headwind for risk; falling = tailwind. Flat band ±0.5%/wk.
+  const dxyVal = dxy?.latest ?? null;
+  const dxyChg = dxy?.pctChg ?? null;
+  const dxyBadge =
+    dxyChg == null ? "—" : dxyChg > 0.5 ? "Rising" : dxyChg < -0.5 ? "Falling" : "Flat";
+  const dxyTone: BadgeTone =
+    dxyChg == null ? "gray" : dxyChg > 0.5 ? "red" : dxyChg < -0.5 ? "green" : "yellow";
   return [
     { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : Math.abs(tr) < 0.05 ? "yellow" : "yellow" },
-    { label: "DXY", value: "—", badge: "Monitor", badgeTone: "gray" },
+    {
+      label: "DXY",
+      value: dxyVal != null ? num(dxyVal, 2) : "—",
+      badge: dxyChg != null ? `${dxyBadge} ${pct(dxyChg, 2)}` : dxyBadge,
+      badgeTone: dxyTone,
+    },
     { label: "Geopolitical", value: "—", badge: "Monitor", badgeTone: "gray" },
   ];
 }
@@ -257,6 +300,7 @@ const ICONS = { vol: "〰", trend: "↗", breadth: "⊞", momentum: "↑", macro
 export default function ShouldITrade() {
   const { data, isLoading } = useSIT();
   const { data: sectors } = useSectors();
+  const { data: dxy } = useDxy();
 
   if (!isSupabaseConfigured) return <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">Supabase not configured.</div>;
   if (isLoading) return <div className="terminal-card p-6"><div className="font-mono text-xs text-text-dim">Loading…</div></div>;
@@ -269,7 +313,7 @@ export default function ShouldITrade() {
   const trendRows = buildTrend(raw);
   const breadthRows = buildBreadth(raw);
   const momentumRows = buildMomentum(raw, sectorLabel);
-  const macroRows = buildMacro(raw);
+  const macroRows = buildMacro(raw, dxy ?? null);
 
   const positionSize = data.decision === "YES" ? "FULL" : data.decision === "CAUTION" ? "HALF" : "NONE";
   const ews = data.execution_window_score ?? 0;
