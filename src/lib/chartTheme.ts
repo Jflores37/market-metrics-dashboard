@@ -1,24 +1,26 @@
 /**
  * Centralized Recharts / SVG chart palette and config.
- * All colors match the Tailwind tokens defined in tailwind.config.ts
- * so the chart layer stays in lockstep with the rest of the UI.
+ * Exact HSL values mirrored from the reference repo's
+ * assets/macro_terminal.css :root (and our tailwind.config.ts) so the
+ * chart layer renders in lockstep with the terminal palette rather than
+ * the stale approximate hex it used before Phase 1.
  */
 
 export const chartColors = {
-  bg: "#0a0d12",          // bg.DEFAULT
-  card: "#0e1218",        // bg.card
-  panel: "#10141c",       // bg.panel
-  surface2: "#0c0f15",
-  border: "#1f242f",      // border.DEFAULT
-  borderSubtle: "#1a1f29",
-  textPrimary: "#7ee3a4", // text.primary
-  textSecondary: "#7a8092",
-  textDim: "#5e6473",
-  green: "#3fcf6b",
-  red: "#e04444",
-  amber: "#f0b424",
-  cyan: "#34c5d6",
-  yellow: "#d29922",
+  bg: "hsl(220 20% 4%)",          // --background
+  card: "hsl(220 20% 6%)",        // --card
+  panel: "hsl(220 20% 7%)",       // --term-surface
+  surface2: "hsl(220 20% 5%)",    // --term-surface2
+  border: "hsl(220 15% 14%)",     // --term-border
+  borderSubtle: "hsl(220 15% 12%)",
+  textPrimary: "hsl(142 70% 70%)",   // --foreground
+  textSecondary: "hsl(220 10% 50%)", // --muted-foreground
+  textDim: "hsl(220 10% 40%)",       // --term-dim
+  green: "hsl(142 70% 55%)",      // --term-green
+  red: "hsl(0 72% 55%)",          // --term-red
+  amber: "hsl(45 90% 55%)",       // --term-amber
+  cyan: "hsl(185 70% 55%)",       // --term-cyan
+  yellow: "#d29922",              // non-terminal accent (kept as-is)
 } as const;
 
 export const signalStroke = {
@@ -44,7 +46,7 @@ export const tooltipContentStyle = {
 export const tooltipLabelStyle = { color: chartColors.textSecondary };
 export const tooltipItemStyle = { color: chartColors.textPrimary };
 export const tooltipCursor = { stroke: chartColors.border };
-export const tooltipCursorFill = { fill: "rgba(48,54,61,0.3)" };
+export const tooltipCursorFill = { fill: "hsl(220 15% 14% / 0.3)" };
 
 /** Recharts <XAxis>/<YAxis> tick + stroke defaults */
 export const axisTickStyle = {
