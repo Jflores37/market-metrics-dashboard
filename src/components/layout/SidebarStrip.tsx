@@ -8,7 +8,7 @@
  */
 export default function SidebarStrip({ onExpand }: { onExpand: () => void }) {
   return (
-    <aside className="hidden md:flex flex-col items-center w-8 shrink-0 border-r border-border bg-bg-card sticky top-0 h-screen py-3 gap-4">
+    <aside className="hidden md:flex flex-col items-center w-10 shrink-0 border-r border-border bg-bg-card sticky top-0 h-screen py-3 gap-4">
       <button
         type="button"
         onClick={onExpand}

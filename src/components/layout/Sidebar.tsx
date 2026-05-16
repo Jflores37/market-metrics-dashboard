@@ -3,7 +3,7 @@ import { TABS } from "@/lib/tabs";
 
 export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   return (
-    <aside className="md:w-56 lg:w-60 shrink-0 border-b md:border-b-0 md:border-r border-border bg-bg-card md:min-h-screen md:sticky md:top-0">
+    <aside className="md:w-[168px] shrink-0 border-b md:border-b-0 md:border-r border-border bg-bg-card md:min-h-screen md:sticky md:top-0">
       <div className="p-4 border-b border-border-subtle hidden md:flex items-start justify-between gap-2">
         <div>
           <div className="font-mono text-xl font-bold tracking-tight text-accent-cyan signal-glow-cyan">
@@ -32,10 +32,10 @@ export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
             to={tab.path}
             end={tab.path === "/"}
             className={({ isActive }) =>
-              `block px-4 py-2.5 rounded-[2px] border text-sm font-mono tracking-tight transition-colors whitespace-nowrap text-center md:text-left ${
+              `block px-2.5 py-2 rounded-[4px] border text-2xs font-mono font-semibold tracking-tight transition-colors whitespace-nowrap text-center md:text-left ${
                 isActive
-                  ? "bg-accent-cyan/10 border-accent-cyan text-accent-cyan signal-glow-cyan"
-                  : "bg-bg-card border-border-subtle text-text-secondary hover:text-text-primary hover:border-border hover:bg-bg-hover"
+                  ? "bg-accent-cyan/[0.12] border-accent-cyan text-accent-cyan shadow-[inset_0_0_0_1px_hsl(185_70%_55%/0.2)]"
+                  : "bg-bg-card border-border-subtle text-text-secondary hover:text-text-primary hover:border-accent-cyan hover:bg-bg-hover"
               }`
             }
           >

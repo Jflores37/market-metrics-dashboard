@@ -133,20 +133,29 @@
 }
 
 @layer utilities {
-  /* Ticker tape marquee: duplicate items and let it loop seamlessly */
+  /* Ticker tape marquee — duplicate items, scroll right→left, seamless
+     loop (translateX -50% lands copy 2 where copy 1 began). Matches the
+     reference sit-marquee: 40s linear, slows to 90s under reduced-motion
+     rather than stopping (many OSes report reduce-motion too broadly). */
   @keyframes marquee {
     from {
-      transform: translateX(0);
+      transform: translate3d(0, 0, 0);
     }
     to {
-      transform: translateX(-50%);
+      transform: translate3d(-50%, 0, 0);
     }
   }
   .animate-marquee {
-    animation: marquee 60s linear infinite;
+    animation: marquee 40s linear infinite;
+    will-change: transform;
   }
   .group:hover .animate-marquee,
   .animate-marquee:hover {
     animation-play-state: paused;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee {
+      animation-duration: 90s;
+    }
   }
 }
