@@ -50,7 +50,7 @@ export const TABS: readonly Tab[] = [
     label: "Super Scanners",
     shortLabel: "Scanners",
     glyph: "⊙",
-    description: "19 curated scanners: Minervini, CANSLIM, Qullamaggie, IPOs, earnings",
+    description: "Curated scanners: Minervini, CANSLIM, Qullamaggie, IPOs, earnings",
   },
   {
     key: "intraday",

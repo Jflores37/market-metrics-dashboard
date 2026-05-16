@@ -54,7 +54,7 @@ export default function CategoryPanel({
   score: number | null;
   rows: DetailRow[];
 }) {
-  const v = score == null ? 0 : Number(score);
+  const v = score ?? 0;
   return (
     <div className="terminal-card p-4 flex flex-col">
       {/* Header */}

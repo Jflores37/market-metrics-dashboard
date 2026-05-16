@@ -194,6 +194,14 @@ const COL_SPECS: Record<ScannerColKey, ColumnSpec> = {
   short_float:  { key: "short_float",  label: "Sh Float",   sortKey: "short_float_pct",     align: "right", cell: (r) => <span className="text-text-secondary tabular-nums">{r.short_float_pct == null ? "—" : `${num(r.short_float_pct, 1)}%`}</span> },
 };
 
+// Catalog sort columns allowed through to the sortable table.
+const SORTABLE_CATALOG_KEYS = new Set<string>([
+  "perf_day",
+  "perf_week",
+  "market_cap_millions",
+  "volume",
+]);
+
 function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
@@ -215,15 +223,10 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
   // Reference default sort: Change DESC on every scanner (layout.py:2773).
   // The few exceptions (earnings = market_cap DESC, weekly mover = week DESC)
   // come from scanner_catalog.default_sort_column.
-  const CATALOG_SORT_MAP: Record<string, keyof ScannerResult> = {
-    perf_day: "perf_day",
-    perf_week: "perf_week",
-    market_cap_millions: "market_cap_millions",
-    volume: "volume",
-  };
   const initialKey: keyof ScannerResult =
-    (scanner.default_sort_column && CATALOG_SORT_MAP[scanner.default_sort_column]) ||
-    "perf_day";
+    scanner.default_sort_column && SORTABLE_CATALOG_KEYS.has(scanner.default_sort_column)
+      ? (scanner.default_sort_column as keyof ScannerResult)
+      : "perf_day";
   const initialDir: SortDir = scanner.default_sort_direction ?? "desc";
 
   const { sorted, sortKey, sortDir, toggle } = useSortable<ScannerResult>(rows, {
@@ -501,8 +504,8 @@ export default function SuperScanners() {
     [summary]
   );
 
-  const totalCount =
-    (summary?.length ?? 0) + (earningsLoading || (earnings && earnings.length > 0) ? 1 : 0);
+  const scannerCards = (summary ?? []).filter((s) => s.scanner_id !== "earnings_thisweek").length;
+  const totalCount = scannerCards + (!earningsLoading && earnings ? 1 : 0);
 
   return (
     <div className="space-y-4">

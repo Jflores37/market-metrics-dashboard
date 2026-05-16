@@ -83,6 +83,8 @@ function useMacroDashboard() {
       return (data?.dashboard ?? null) as DashboardPayload | null;
     },
     enabled: isSupabaseConfigured,
+    // Keep the "next refresh ~Nm" countdown honest — actually refetch.
+    refetchInterval: REFRESH_INTERVAL_MIN * 60_000,
   });
 }
 

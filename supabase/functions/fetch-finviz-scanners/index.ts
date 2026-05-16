@@ -60,7 +60,7 @@ function num(s?: string): number | null {
   if (!s) return null; const t = s.trim();
   if (t === "" || t === "-") return null;
   const m = /^([\-+]?[\d.]+)\s*([KMB])?\s*%?$/i.exec(t.replace(/,/g, ""));
-  if (!m) { const n = parseFloat(t.replace(/,/g, "")); return Number.isFinite(n) ? n : null; }
+  if (!m) return null;
   let v = parseFloat(m[1]); if (!Number.isFinite(v)) return null;
   const suf = (m[2] ?? "").toUpperCase();
   if (suf === "K") v *= 1e3; else if (suf === "M") v *= 1e6; else if (suf === "B") v *= 1e9;
@@ -271,10 +271,19 @@ function parseEarningsDate(raw: string | null): { date: string | null; time: str
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(.+))?$/.exec(raw.trim());
   if (!m) return { date: null, time: null };
   const mo = parseInt(m[1], 10), d = parseInt(m[2], 10), y = parseInt(m[3], 10);
-  if (y < 2000 || mo < 1 || mo > 12 || d < 1 || d > 31) return { date: null, time: null };
+  if (y < 2000 || mo < 1 || mo > 12 || d < 1) return { date: null, time: null };
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d)
+    return { date: null, time: null };
   const date = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   const tp = m[4]?.trim() || null;
-  const time = tp ? (/AM\s*$/i.test(tp) ? "BMO" : "AMC") : null;
+  const time = !tp
+    ? null
+    : /\b(bmo|before)\b/i.test(tp) ? "BMO"
+    : /\b(amc|after)\b/i.test(tp) ? "AMC"
+    : /\bAM\b/i.test(tp) ? "BMO"
+    : /\bPM\b/i.test(tp) ? "AMC"
+    : null;
   return { date, time };
 }
 
@@ -343,9 +352,13 @@ Deno.serve(async (req: Request) => {
         const e = await fetchEarnings(auth);
         if (e.rows.length > 0) {
           const today = new Date().toISOString().slice(0, 10);
-          await supabase.from("earnings_calendar").delete().gte("earnings_date", today);
-          const { error } = await supabase.from("earnings_calendar").upsert(e.rows, { onConflict: "ticker,earnings_date" });
+          const runStamp = new Date().toISOString();
+          const rows = e.rows.map((r) => ({ ...r, fetched_at: runStamp }));
+          // Write first: if this fails, the existing table is left intact.
+          const { error } = await supabase.from("earnings_calendar").upsert(rows, { onConflict: "ticker,earnings_date" });
           if (error) throw error;
+          // Then drop only future rows this run did not refresh (delisted/moved).
+          await supabase.from("earnings_calendar").delete().gte("earnings_date", today).lt("fetched_at", runStamp);
         }
         earningsSummary = { fetched: e.raw, inserted: e.rows.length };
       } catch (err) { earningsSummary = { error: String(err instanceof Error ? err.message : err) }; }
@@ -355,7 +368,7 @@ Deno.serve(async (req: Request) => {
     const full = { group: onlyId ? `only:${onlyId}` : group, snapshot_date: snap,
       scanner_count: Object.keys(summary).length, scanners_ok: Object.keys(summary).length - failed,
       scanners_failed: failed, scanners: summary, earnings: earningsSummary };
-    await finishJob(failed === 0 ? "ok" : (failed > Object.keys(summary).length / 2 ? "error" : "ok"), full);
+    await finishJob(failed === 0 ? "ok" : "error", full);
     return new Response(JSON.stringify({ ok: failed === 0, elapsed_ms: Date.now() - started, ...full }),
       { headers: { "Content-Type": "application/json" } });
   } catch (err) {

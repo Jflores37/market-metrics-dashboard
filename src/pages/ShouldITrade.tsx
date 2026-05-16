@@ -284,7 +284,7 @@ function buildMacro(
   const dxyTone: BadgeTone =
     dxyChg == null ? "gray" : dxyChg > 0.5 ? "red" : dxyChg < -0.5 ? "green" : "yellow";
   return [
-    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : Math.abs(tr) < 0.05 ? "yellow" : "yellow" },
+    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : tr > 0.05 ? "red" : tr < -0.05 ? "green" : "yellow" },
     {
       label: "DXY",
       value: dxyVal != null ? num(dxyVal, 2) : "—",

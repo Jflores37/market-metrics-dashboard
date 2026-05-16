@@ -74,7 +74,6 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
       </td>
     );
   }
-  const total = row.above_count + (row.below_count ?? 0);
   const aboveUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "above");
   const belowUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "below");
   const linkCls = "hover:text-accent-cyan hover:underline transition-colors";
@@ -95,10 +94,10 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
           {"/"}
           {belowUrl && (row.below_count ?? 0) > 0 ? (
             <a href={belowUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
-              {total}
+              {row.below_count ?? 0}
             </a>
           ) : (
-            total
+            row.below_count ?? 0
           )}
         </div>
         <div className="h-0.5 bg-bg-panel rounded-full overflow-hidden">
@@ -152,7 +151,7 @@ export default function KeyMetricsGrid() {
         <div className="flex items-baseline gap-2">
           <span className="text-accent-cyan text-sm signal-glow-cyan">⊞</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Key Metrics · 5 universes × 19 rows
+            Key Metrics · {UNIVERSES.length} universes × {metrics.length} rows
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim">
