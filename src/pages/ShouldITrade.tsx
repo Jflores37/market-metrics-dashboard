@@ -202,11 +202,21 @@ function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
   // VVIX is "VIX of VIX" — high VVIX means traders expect VIX itself to be volatile (uncertainty).
   // Typical: ~80=calm, ~95=normal, >110=elevated. Below 80 = unusually calm.
   const vvixTone: BadgeTone = vvix == null ? "gray" : vvix < 85 ? "green" : vvix < 105 ? "yellow" : "red";
+  // Put/Call estimated from VIX regime — identical to the reference's
+  // _estimate_put_call (should_i_trade_data.py:63). The reference has no
+  // CBOE feed; it's a 4-step function of VIX.
+  const pc =
+    vix == null ? null : vix < 15 ? 0.8 : vix < 20 ? 1.0 : vix < 25 ? 1.1 : 1.2;
+  // Tone mirrors reference _pc_dot: >1.1 red, <0.9 green, else yellow.
+  const pcTone: BadgeTone = pc == null ? "gray" : pc > 1.1 ? "red" : pc < 0.9 ? "green" : "yellow";
+  const pcBadge =
+    pc == null ? null : pc > 1.1 ? "Fear elevated" : pc < 0.85 ? "Complacent" : "Neutral";
   return [
     { label: "VIX Level", value: vix != null ? num(vix, 2) : "—", badge: vixTone === "green" ? "Low" : vixTone === "yellow" ? "Normal" : "Elevated", badgeTone: vixTone },
     { label: "VIX Trend", value: slope == null ? "—" : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badge: slope == null ? null : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badgeTone: slopeTone },
     { label: "VIX 1Y %ile", value: pctile != null ? `${Math.round(pctile)}th` : "—", badge: pctileTone === "green" ? "Low" : pctileTone === "yellow" ? "Normal" : "High", badgeTone: pctileTone },
     { label: "VVIX", value: vvix != null ? num(vvix, 1) : "—", badge: vvixTone === "green" ? "Calm" : vvixTone === "yellow" ? "Normal" : "Stressed", badgeTone: vvixTone },
+    { label: "Put/Call", value: pc != null ? num(pc, 2) : "—", badge: pcBadge, badgeTone: pcTone },
   ];
 }
 
