@@ -291,7 +291,6 @@ function buildMacro(
       badge: dxyChg != null ? `${dxyBadge} ${pct(dxyChg, 2)}` : dxyBadge,
       badgeTone: dxyTone,
     },
-    { label: "Geopolitical", value: "—", badge: "Monitor", badgeTone: "gray" },
   ];
 }
 
