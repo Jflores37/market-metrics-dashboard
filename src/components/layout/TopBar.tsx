@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * Top status bar: date/time in the center, refresh + settings stub on
- * the right. The hamburger that used to live here is gone — the
- * sidebar manages its own open/closed state via the collapse chevron
- * inside it and the expand chevron on the thin collapsed-strip.
+ * Top status bar: date/time in the center, refresh button on the right.
+ * The hamburger that used to live here is gone — the sidebar manages
+ * its own open/closed state via the collapse chevron inside it and the
+ * expand chevron on the thin collapsed-strip.
  */
 export default function TopBar() {
   const queryClient = useQueryClient();
@@ -53,12 +53,6 @@ export default function TopBar() {
         >
           <span className={refreshing ? "animate-spin inline-block" : "inline-block"}>↻</span>
           <span className="hidden sm:inline">Refresh</span>
-        </button>
-        <button
-          aria-label="Settings"
-          className="hidden sm:flex items-center justify-center w-7 h-7 rounded-[2px] text-text-dim hover:text-accent-cyan hover:bg-bg-hover transition-colors"
-        >
-          ⚙
         </button>
       </div>
     </div>
