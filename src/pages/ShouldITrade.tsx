@@ -30,7 +30,7 @@ interface SITRow {
   raw_inputs: {
     volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null; vvix?: number | null };
     trend?: { spy_above_20: boolean | null; spy_above_50: boolean | null; spy_above_200: boolean | null; qqq_above_50: boolean | null; regime: string };
-    breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; new_highs: number | null; new_lows: number | null };
+    breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; up4: number | null; down4: number | null; new_highs: number | null; new_lows: number | null };
     momentum?: { sectors: Array<{ ticker: string; chg: number | null }>; top3: Array<{ ticker: string; chg: number | null }>; bottom3: Array<{ ticker: string; chg: number | null }>; spread: number | null };
     macro?: { tnx: number | null; tnx_5d_trend: number | null };
   };
@@ -227,12 +227,19 @@ function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
   const b = r.breadth;
   const fmtP = (n: number | null | undefined) => n == null ? "—" : `${num(n, 1)}%`;
   const toneP = (n: number | null | undefined): BadgeTone => n == null ? "gray" : n >= 60 ? "green" : n >= 40 ? "yellow" : "red";
-  const r5 = b?.ratio5 ?? null;
+  const up4 = b?.up4 ?? null;
+  const down4 = b?.down4 ?? null;
+  const ad = up4 != null && down4 != null && down4 > 0 ? up4 / down4 : null;
+  const adValue = ad != null
+    ? `${num(ad, 1)}:1`
+    : up4 != null || down4 != null
+      ? `${up4 ?? 0}/${down4 ?? 0}`
+      : "—";
   return [
     { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: "Neutral", badgeTone: toneP(b?.pct_above_50) },
     { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: "Neutral", badgeTone: toneP(b?.pct_above_200) },
     { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: "Neutral", badgeTone: toneP(b?.pct_above_20) },
-    { label: "NYSE A/D", value: r5 != null ? `${num(r5, 2)}:1` : "—", badge: r5 == null ? "—" : r5 > 1.1 ? "Positive" : r5 < 0.9 ? "Negative" : "Flat", badgeTone: r5 == null ? "gray" : r5 > 1.1 ? "green" : r5 < 0.9 ? "red" : "yellow" },
+    { label: "NYSE A/D", value: adValue, badge: ad == null ? "—" : ad > 1 ? "Positive" : ad < 1 ? "Negative" : "Flat", badgeTone: ad == null ? "gray" : ad > 1 ? "green" : ad < 1 ? "red" : "yellow" },
     { label: "NAS Highs/Lows", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
   ];
 }
