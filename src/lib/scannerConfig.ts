@@ -52,6 +52,10 @@ const ONEIL: ScannerColKey[] = [...BASIC, "roe", "net_margin"];
 // Short Float in the Financial view).
 const HIGH_SHORT: ScannerColKey[] = ["ticker", "short_float", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
 
+// StockBee 20% Weekly Movers (reference build_20pct_weekly_table): Week perf
+// column after Ticker. Reference export c=1,41,47,61,62,63,64,65.
+const WEEKLY: ScannerColKey[] = ["ticker", "week", "price", "avg_vol", "rel_vol", "change", "volume", "atr_pct"];
+
 export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
   // Trend group
   minervini:            { columns: BASIC },
@@ -61,6 +65,8 @@ export const SCANNER_LAYOUTS: Record<string, ScannerLayout> = {
   extended_bases:       { columns: BASIC },
   julian_strongest:     { columns: BASIC },
   club_97:              { columns: BASIC },
+  nine_m_movers:        { columns: BASIC },
+  weekly_20pct:         { columns: WEEKLY },
 
   // Qullamaggie family (EP / PS / BO + combined rollup)
   qullamaggie:          { columns: QULLA },

@@ -98,6 +98,12 @@ const REF_URLS: Record<string, string> = {
   jeff_sun_liquid_etfs:      "https://elite.finviz.com/export.ashx?v=111&f=ind_exchangetradedfund,sh_avgvol_o1000,ta_volatility_wo3&ft=4&o=-volume&c=1,47,61,62,63,64,65",
   julian_komar_strongest:    "https://elite.finviz.com/export.ashx?v=141&f=cap_smallover,ind_stocksonly,sh_avgvol_o100,sh_price_o7,ta_highlow52w_a70h,ta_sma50_pa&ft=4&o=-low52w&c=1,47,61,62,63,64,65",
   up4_daily:                 "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_4to-d&o=-change&c=1,47,61,62,63,64,65",
+  // 97 Club + 9M Movers: reference uses bare export URLs (no c=); we add a
+  // placeholder c=1 so buildUrl rewrites it to the full v=152 column set.
+  club_97:                   "https://elite.finviz.com/export.ashx?v=111&f=cap_1to,sh_avgvol_o1000,sh_price_o1&o=-change&c=1",
+  nine_m_movers:             "https://elite.finviz.com/export.ashx?v=111&f=cap_1to,sh_curvol_9000tox,sh_price_o1,sh_relvol_1.25to&o=-change&c=1",
+  weekly_20pct_up:           "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_1w20o&o=-change&c=1,41,47,61,62,63,64,65",
+  weekly_20pct_down:         "https://elite.finviz.com/export.ashx?v=141&f=sh_avgvol_o1000,sh_price_o1,ta_perf_1w20u&o=-change&c=1,41,47,61,62,63,64,65",
 };
 
 const FULL_V152_COLS =
@@ -112,7 +118,7 @@ function buildUrl(refUrl: string, auth: string): string {
 type ParsedRow = {
   ticker: string; price: number | null; volume: number | null;
   avgVolume: number | null; relVolume: number | null;
-  perfDay: number | null; atr: number | null;
+  perfDay: number | null; perfWeek: number | null; atr: number | null;
   roe: number | null; netMargin: number | null; shortFloat: number | null;
 };
 
@@ -133,6 +139,7 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
         ticker:     findCol(headers, ["Ticker"]),
         price:      findCol(headers, ["Price"]),
         change:     findCol(headers, ["Change"]),
+        perfWeek:   findCol(headers, ["Performance (Week)"]),
         volume:     findCol(headers, ["Volume"]),
         avgVolume:  findCol(headers, ["Average Volume"]),
         relVolume:  findCol(headers, ["Relative Volume"]),
@@ -157,6 +164,7 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
           avgVolume: avRaw == null ? null : avRaw * 1000,
           relVolume: num(get(row, idx.relVolume)),
           perfDay: pct(get(row, idx.change)),
+          perfWeek: pct(get(row, idx.perfWeek)),
           atr: num(get(row, idx.atr)),
           roe: pct(get(row, idx.roe)),
           netMargin: pct(get(row, idx.netMargin)),
@@ -180,7 +188,7 @@ function toRecord(scannerId: string, snapshotDate: string, r: ParsedRow, rank: n
     company: null, sector: null, industry: null,
     price: r.price, market_cap_millions: null,
     volume: r.volume, avg_volume: r.avgVolume, rel_volume: r.relVolume,
-    perf_day: r.perfDay, perf_week: null, perf_month: null,
+    perf_day: r.perfDay, perf_week: r.perfWeek, perf_month: null,
     perf_quarter: null, perf_half: null, perf_year: null, perf_ytd: null,
     rsi14: null, atr: r.atr, atr_pct: atrPct,
     stage_tag: stageTag, dist_52w_high_pct: null,
@@ -237,6 +245,21 @@ async function runQullaCombined(auth: string, snap: string) {
   return { fetched: ep.length + psL.length + psS.length + bo.length, inserted: records.length };
 }
 
+async function runWeekly20pct(auth: string, snap: string) {
+  const up = await finvizPull(REF_URLS.weekly_20pct_up, auth);
+  await sleep(CALL_DELAY_MS);
+  const down = await finvizPull(REF_URLS.weekly_20pct_down, auth);
+  const byT = new Map<string, ParsedRow>();
+  for (const r of up) if (!byT.has(r.ticker)) byT.set(r.ticker, r);
+  for (const r of down) if (!byT.has(r.ticker)) byT.set(r.ticker, r);
+  const merged = Array.from(byT.values()).sort(
+    (a, b) => (b.perfWeek ?? -Infinity) - (a.perfWeek ?? -Infinity),
+  );
+  const records = merged.map((r, i) => toRecord("weekly_20pct", snap, r, i + 1));
+  await upsertScanner("weekly_20pct", snap, records);
+  return { fetched: up.length + down.length, inserted: records.length };
+}
+
 const RUNNERS: Record<string, (auth: string, snap: string) => Promise<{ fetched: number; inserted: number }>> = {
   minervini:            (a, s) => runSingle("minervini", "minervini", a, s),
   canslim:              (a, s) => runSingle("canslim", "oneil", a, s),
@@ -257,12 +280,15 @@ const RUNNERS: Record<string, (auth: string, snap: string) => Promise<{ fetched:
   ipo_thisweek:         (a, s) => runSingle("ipo_thisweek", "jeff_sun_ipo_thisweek", a, s),
   high_short:           (a, s) => runSingle("high_short", "jeff_sun_high_short_float", a, s),
   liquid_etfs:          (a, s) => runSingle("liquid_etfs", "jeff_sun_liquid_etfs", a, s),
+  club_97:              (a, s) => runSingle("club_97", "club_97", a, s),
+  nine_m_movers:        (a, s) => runSingle("nine_m_movers", "nine_m_movers", a, s),
+  weekly_20pct:         (a, s) => runWeekly20pct(a, s),
 };
 
 const GROUPS: Record<string, string[]> = {
   trend:   ["minervini", "canslim", "jeff_sun_canslim", "high_adr", "extended_bases", "julian_strongest"],
   perf:    ["qullamaggie", "qullamaggie_combined", "qullamaggie_breakout", "parabolic_short", "perf_1w20", "perf_4w30"],
-  perf2:   ["perf_4w50", "perf_13w50", "perf_26w100", "up4_daily"],
+  perf2:   ["perf_4w50", "perf_13w50", "perf_26w100", "up4_daily", "club_97", "nine_m_movers", "weekly_20pct"],
   special: ["ipo_thisweek", "high_short", "liquid_etfs"],
 };
 
