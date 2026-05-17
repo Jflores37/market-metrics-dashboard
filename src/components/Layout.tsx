@@ -4,6 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import SidebarStrip from "@/components/layout/SidebarStrip";
 import TopBar from "@/components/layout/TopBar";
 import TickerTape from "@/components/layout/TickerTape";
+import FreshnessBanner from "@/components/layout/FreshnessBanner";
 import TerminalFrame from "@/components/layout/TerminalFrame";
 
 export default function Layout() {
@@ -24,6 +25,7 @@ export default function Layout() {
       <div className="flex-1 min-w-0 flex flex-col">
         <TopBar />
         <TickerTape />
+        <FreshnessBanner />
         <TerminalFrame>
           <Outlet />
         </TerminalFrame>
