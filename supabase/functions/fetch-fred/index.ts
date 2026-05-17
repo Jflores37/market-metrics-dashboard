@@ -9,13 +9,11 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 async function getFredKey(): Promise<string> {
-  const { data, error } = await supabase
-    .from("app_config")
-    .select("value")
-    .eq("key", "fred_api_key")
-    .single();
-  if (error || !data) throw new Error(`FRED key not configured: ${error?.message}`);
-  return data.value;
+  const { data, error } = await supabase.rpc("get_secret", { p_name: "fred_api_key" });
+  if (error || data == null || data === "") {
+    throw new Error(`FRED key not available from Vault: ${error?.message ?? "not found"}`);
+  }
+  return data as string;
 }
 
 async function fetchSeries(seriesId: string, apiKey: string, since: string) {

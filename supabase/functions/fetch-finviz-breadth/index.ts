@@ -26,13 +26,11 @@ function sleep(ms: number) {
 }
 
 async function getSecret(key: string): Promise<string> {
-  const { data, error } = await supabase
-    .from("app_config")
-    .select("value")
-    .eq("key", key)
-    .single();
-  if (error || !data) throw new Error(`Secret ${key} not configured: ${error?.message}`);
-  return data.value;
+  const { data, error } = await supabase.rpc("get_secret", { p_name: key });
+  if (error || data == null || data === "") {
+    throw new Error(`Secret ${key} not available from Vault: ${error?.message ?? "not found"}`);
+  }
+  return data as string;
 }
 
 function parseCSV(text: string): string[][] {
