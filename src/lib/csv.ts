@@ -21,7 +21,7 @@ function escapeCell(v: string | number | null | undefined): string {
 }
 
 /** Build a CSV string from rows + a column spec */
-export function buildCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
+export function buildCsv<T>(rows: readonly T[], columns: CsvColumn<T>[]): string {
   const header = columns.map((c) => escapeCell(c.header)).join(",");
   const body = rows
     .map((row) => columns.map((c) => escapeCell(c.value(row))).join(","))
@@ -44,6 +44,6 @@ export function downloadTextFile(filename: string, content: string, mimeType = "
 }
 
 /** Convenience: build + download in one call */
-export function downloadCsv<T>(filename: string, rows: T[], columns: CsvColumn<T>[]) {
+export function downloadCsv<T>(filename: string, rows: readonly T[], columns: CsvColumn<T>[]) {
   downloadTextFile(filename, buildCsv(rows, columns));
 }

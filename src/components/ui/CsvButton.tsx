@@ -12,7 +12,7 @@ export default function CsvButton<T>({
   disabled,
 }: {
   filename: string;
-  rows: T[];
+  rows: readonly T[];
   columns: CsvColumn<T>[];
   disabled?: boolean;
 }) {
