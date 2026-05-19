@@ -249,25 +249,27 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="flex items-baseline gap-2 min-w-0">
           <span className="text-accent-cyan signal-glow-cyan">{GROUP_ICON[scanner.group_tab]}</span>
-          <span className="font-mono text-sm font-semibold text-text-primary truncate">
-            {scanner.label}
-          </span>
+          {scanner.finviz_url && scanner.finviz_url.startsWith("http") ? (
+            <a
+              href={scanner.finviz_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              title="Open this scanner's filters on FinViz"
+              className="font-mono text-sm font-semibold text-text-primary truncate hover:text-accent-cyan hover:underline transition-colors"
+            >
+              {scanner.label}
+              <span aria-hidden="true" className="ml-1 text-2xs text-accent-cyan">↗</span>
+            </a>
+          ) : (
+            <span className="font-mono text-sm font-semibold text-text-primary truncate">
+              {scanner.label}
+            </span>
+          )}
           <span className="font-mono text-2xs text-accent-amber tabular-nums shrink-0">
             {rows.length}
           </span>
         </div>
         <div className="flex items-baseline gap-3 shrink-0">
-          {scanner.finviz_url && scanner.finviz_url.startsWith("http") && (
-            <a
-              href={scanner.finviz_url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="font-mono text-2xs text-accent-cyan hover:underline uppercase tracking-widest"
-              title="Open this filter on FinViz Elite"
-            >
-              FinViz
-            </a>
-          )}
           <span className="font-mono text-2xs text-text-dim">
             {scanner.source || "—"}
             {scanner.snapshot_date ? ` · ${scanner.snapshot_date}` : ""}
