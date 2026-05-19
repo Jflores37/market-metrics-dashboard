@@ -5,7 +5,8 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
-import { chartColors, axisTickStyle, axisStroke, referenceLineStroke } from "@/lib/chartTheme";
+import { chartColors, axisTickStyle, axisStroke, referenceLineStroke, axisTick } from "@/lib/chartTheme";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 interface LandscapeRow {
   ticker: string;
@@ -98,6 +99,7 @@ function CustomTooltip({ active, payload }: any) {
 
 export default function SP500Landscape() {
   const { data, isLoading } = useLandscape();
+  const isMobile = useIsMobile();
   const [xKey, setXKey] = useState<XKey>("perf_week");
   const [yKey, setYKey] = useState<YKey>("perf_year");
 
@@ -111,10 +113,16 @@ export default function SP500Landscape() {
   if (!data || data.length === 0) return null;
 
   const sectors = Array.from(new Set(data.map((d) => d.sector).filter(Boolean))).sort();
-  const dataWithZ = data.map((d) => ({
-    ...d,
-    z: Math.log10(Math.max(10, d.market_cap_millions ?? 10)) * 100,
-  }));
+  const dataWithZ = data
+    .filter(
+      (d) =>
+        d[xKey] != null && d[yKey] != null &&
+        Number.isFinite(Number(d[xKey])) && Number.isFinite(Number(d[yKey])),
+    )
+    .map((d) => ({
+      ...d,
+      z: Math.log10(Math.max(10, d.market_cap_millions ?? 10)) * 100,
+    }));
 
   const xLabel = X_OPTIONS.find((o) => o.key === xKey)?.label ?? xKey;
   const yLabel = Y_OPTIONS.find((o) => o.key === yKey)?.label ?? yKey;
@@ -133,23 +141,23 @@ export default function SP500Landscape() {
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-3">
-        <div className="flex items-center gap-2 text-2xs font-mono">
+      <div className="flex flex-wrap gap-2 sm:gap-3 mb-3">
+        <div className="flex items-center gap-2 text-2xs font-mono flex-1 sm:flex-none min-w-0">
           <span className="text-text-dim uppercase tracking-wider">X:</span>
           <select
             value={xKey}
             onChange={(e) => setXKey(e.target.value as XKey)}
-            className="bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-0.5 font-mono text-2xs"
+            className="bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-1 sm:py-0.5 font-mono text-xs sm:text-2xs min-h-[32px] flex-1 sm:flex-none min-w-0"
           >
             {X_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
-        <div className="flex items-center gap-2 text-2xs font-mono">
+        <div className="flex items-center gap-2 text-2xs font-mono flex-1 sm:flex-none min-w-0">
           <span className="text-text-dim uppercase tracking-wider">Y:</span>
           <select
             value={yKey}
             onChange={(e) => setYKey(e.target.value as YKey)}
-            className="bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-0.5 font-mono text-2xs"
+            className="bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-1 sm:py-0.5 font-mono text-xs sm:text-2xs min-h-[32px] flex-1 sm:flex-none min-w-0"
           >
             {Y_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
@@ -165,22 +173,30 @@ export default function SP500Landscape() {
         ))}
       </div>
 
-      <div className="h-96">
+      <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 20, bottom: 30, left: 30 }}>
+          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 28, left: 8 } : { top: 20, right: 20, bottom: 30, left: 30 }}>
             <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <ReferenceLine x={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <XAxis
               type="number"
               dataKey={xKey}
-              tick={axisTickStyle}
+              tickFormatter={axisTick(0)}
+              allowDecimals={false}
+              interval="preserveStartEnd"
+              minTickGap={isMobile ? 24 : 8}
+              tick={isMobile ? { ...axisTickStyle, fontSize: 9 } : axisTickStyle}
               stroke={axisStroke}
               label={{ value: xLabel, fontSize: 10, fill: chartColors.textDim, fontFamily: "JetBrains Mono, monospace", position: "insideBottom", offset: -10 }}
             />
             <YAxis
               type="number"
               dataKey={yKey}
-              tick={axisTickStyle}
+              tickFormatter={axisTick(0)}
+              allowDecimals={false}
+              interval="preserveStartEnd"
+              minTickGap={isMobile ? 24 : 8}
+              tick={isMobile ? { ...axisTickStyle, fontSize: 9 } : axisTickStyle}
               stroke={axisStroke}
               label={{ value: yLabel, fontSize: 10, fill: chartColors.textDim, fontFamily: "JetBrains Mono, monospace", angle: -90, position: "insideLeft", offset: 10 }}
             />

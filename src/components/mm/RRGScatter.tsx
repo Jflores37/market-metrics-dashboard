@@ -4,7 +4,8 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
-import { chartColors, axisTickStyle, axisStroke, referenceLineStroke } from "@/lib/chartTheme";
+import { chartColors, axisTickStyle, axisStroke, referenceLineStroke, axisTick } from "@/lib/chartTheme";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 type Quadrant = "leading" | "weakening" | "lagging" | "improving";
 
@@ -67,17 +68,21 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-function renderCurrentDot(props: any) {
-  const { cx, cy, payload } = props;
-  const color = QUADRANT_COLOR[payload.quadrant as Quadrant] || chartColors.textSecondary;
-  return (
-    <g key={`g-${payload.ticker}`}>
-      <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
-      <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
-        {payload.ticker}
-      </text>
-    </g>
-  );
+function makeCurrentDot(isMobile: boolean) {
+  return function CurrentDot(props: any) {
+    const { cx, cy, payload } = props;
+    const color = QUADRANT_COLOR[payload.quadrant as Quadrant] || chartColors.textSecondary;
+    return (
+      <g key={`g-${payload.ticker}`}>
+        <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
+        {!isMobile && (
+          <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
+            {payload.ticker}
+          </text>
+        )}
+      </g>
+    );
+  };
 }
 
 function renderTrailDot(props: any) {
@@ -85,8 +90,19 @@ function renderTrailDot(props: any) {
   return <circle cx={cx} cy={cy} r={2} fill={chartColors.textDim} opacity={0.35} />;
 }
 
+// RRG indices are centered at 100. A fixed domain is immune to non-finite
+// data (the cause of the "34599999999999" tick garbage) and keeps the
+// x=100 / y=100 quadrant guides stable frame-to-frame.
+const RRG_DOMAIN: [number, number] = [90, 115];
+const RRG_TICKS = [90, 95, 100, 105, 110, 115];
+const RRG_TICKS_MOBILE = [90, 100, 110];
+
+const isFiniteRow = (d: { rs_ratio: number; rs_momentum: number }) =>
+  Number.isFinite(Number(d.rs_ratio)) && Number.isFinite(Number(d.rs_momentum));
+
 export default function RRGScatter() {
   const { data, isLoading } = useRRG();
+  const isMobile = useIsMobile();
 
   if (isLoading) {
     return (
@@ -97,16 +113,10 @@ export default function RRGScatter() {
   }
   if (!data || data.current.length === 0) return null;
 
-  const allRatios = [...data.current.map(d => Number(d.rs_ratio)), ...data.trails.map(d => Number(d.rs_ratio))];
-  const allMoms = [...data.current.map(d => Number(d.rs_momentum)), ...data.trails.map(d => Number(d.rs_momentum))];
-  const minR = Math.min(...allRatios, 95);
-  const maxR = Math.max(...allRatios, 105);
-  const minM = Math.min(...allMoms, 95);
-  const maxM = Math.max(...allMoms, 105);
-  const padR = (maxR - minR) * 0.1;
-  const padM = (maxM - minM) * 0.1;
-  const xDomain: [number, number] = [minR - padR, maxR + padR];
-  const yDomain: [number, number] = [minM - padM, maxM + padM];
+  const currentPts = data.current.filter(isFiniteRow);
+  const trailPts = data.trails.filter(isFiniteRow);
+  const ticks = isMobile ? RRG_TICKS_MOBILE : RRG_TICKS;
+  const tickStyle = isMobile ? { ...axisTickStyle, fontSize: 9 } : axisTickStyle;
 
   return (
     <div className="terminal-card p-4">
@@ -131,13 +141,13 @@ export default function RRGScatter() {
         ))}
       </div>
 
-      <div className="h-96">
+      <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 30 }}>
-            <ReferenceArea x1={100} x2={xDomain[1]} y1={100} y2={yDomain[1]} fill={QUADRANT_COLOR.leading} fillOpacity={0.06} />
-            <ReferenceArea x1={100} x2={xDomain[1]} y1={yDomain[0]} y2={100} fill={QUADRANT_COLOR.weakening} fillOpacity={0.06} />
-            <ReferenceArea x1={xDomain[0]} x2={100} y1={yDomain[0]} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />
-            <ReferenceArea x1={xDomain[0]} x2={100} y1={100} y2={yDomain[1]} fill={QUADRANT_COLOR.improving} fillOpacity={0.06} />
+          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 24, left: 8 } : { top: 20, right: 30, bottom: 30, left: 30 }}>
+            <ReferenceArea x1={100} x2={RRG_DOMAIN[1]} y1={100} y2={RRG_DOMAIN[1]} fill={QUADRANT_COLOR.leading} fillOpacity={0.06} />
+            <ReferenceArea x1={100} x2={RRG_DOMAIN[1]} y1={RRG_DOMAIN[0]} y2={100} fill={QUADRANT_COLOR.weakening} fillOpacity={0.06} />
+            <ReferenceArea x1={RRG_DOMAIN[0]} x2={100} y1={RRG_DOMAIN[0]} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />
+            <ReferenceArea x1={RRG_DOMAIN[0]} x2={100} y1={100} y2={RRG_DOMAIN[1]} fill={QUADRANT_COLOR.improving} fillOpacity={0.06} />
 
             <ReferenceLine x={100} stroke={referenceLineStroke} strokeWidth={1} />
             <ReferenceLine y={100} stroke={referenceLineStroke} strokeWidth={1} />
@@ -145,20 +155,28 @@ export default function RRGScatter() {
             <XAxis
               type="number"
               dataKey="rs_ratio"
-              domain={xDomain}
-              tick={axisTickStyle}
+              domain={RRG_DOMAIN}
+              ticks={ticks}
+              allowDecimals={false}
+              allowDataOverflow
+              tickFormatter={axisTick(0)}
+              tick={tickStyle}
               stroke={axisStroke}
             />
             <YAxis
               type="number"
               dataKey="rs_momentum"
-              domain={yDomain}
-              tick={axisTickStyle}
+              domain={RRG_DOMAIN}
+              ticks={ticks}
+              allowDecimals={false}
+              allowDataOverflow
+              tickFormatter={axisTick(0)}
+              tick={tickStyle}
               stroke={axisStroke}
             />
 
-            <Scatter name="trail" data={data.trails} shape={renderTrailDot} />
-            <Scatter name="current" data={data.current} shape={renderCurrentDot} />
+            <Scatter name="trail" data={trailPts} shape={renderTrailDot} />
+            <Scatter name="current" data={currentPts} shape={makeCurrentDot(isMobile)} />
 
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
           </ScatterChart>

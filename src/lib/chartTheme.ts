@@ -56,6 +56,20 @@ export const axisTickStyle = {
 };
 export const axisStroke = chartColors.border;
 
+/**
+ * Recharts axis `tickFormatter`. Kills IEEE-754 float noise
+ * ("91.954000000000001") without thousands separators (a "1,250" axis
+ * tick misaligns and reads wrong). Integers render bare; otherwise fixed
+ * to `digits`. Guards non-finite defensively.
+ */
+export function axisTick(digits = 0) {
+  return (v: number): string => {
+    if (!Number.isFinite(v)) return "";
+    const r = digits <= 0 ? Math.round(v) : Number(v.toFixed(digits));
+    return Number.isInteger(r) ? String(r) : r.toFixed(digits);
+  };
+}
+
 /** Recharts <ReferenceLine>/<CartesianGrid> defaults */
 export const referenceLineStroke = chartColors.border;
 export const gridStroke = chartColors.border;
