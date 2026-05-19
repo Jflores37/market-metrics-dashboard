@@ -118,6 +118,17 @@ function formatObsDate(iso: string | null): string {
   }
 }
 
+// 'deficit' is the only KPI whose server string is an unscaled "-$1775B".
+// Reformat it from value_num (FRED millions) via the shared compact
+// formatter so it reads -$1.77T like the fiscal panel; every other KPI is
+// already correctly formatted server-side.
+function kpiDisplay(kpi: Kpi): string {
+  if (kpi.metric_id === "deficit" && kpi.value_num != null) {
+    return usdCompact(kpi.value_num, "millions");
+  }
+  return kpi.display;
+}
+
 function KpiCard({ kpi }: { kpi: Kpi }) {
   return (
     <div className="terminal-card p-3 flex flex-col gap-1.5 min-h-[115px]">
@@ -125,7 +136,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
         {kpi.short}
       </div>
       <div className={`font-mono text-base font-semibold tabular-nums ${SIGNAL_TEXT[kpi.signal] ?? "text-text-primary"}`}>
-        {kpi.display}
+        {kpiDisplay(kpi)}
       </div>
       <div className="text-2xs text-text-dim mono truncate">
         {formatObsDate(kpi.observation_date)}
