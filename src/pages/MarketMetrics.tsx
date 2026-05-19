@@ -27,13 +27,36 @@ import RRGScatter from "@/components/mm/RRGScatter";
 import SP500Landscape from "@/components/mm/SP500Landscape";
 
 // ===== Pinned SIT Banner =====
+type Verdict = { word: "Strong" | "Mixed" | "Weak" | "Unknown"; color: string };
+
+// MQS bands mirror the engine's swing decision thresholds (80 / 60) so the
+// word can't visually contradict the YES/CAUTION/NO. EWS has no published
+// threshold; use the engine's follow-through bands (>=70 / 40 / <40).
+function scoreVerdict(
+  score: number | null | undefined,
+  kind: "market" | "timing",
+): Verdict {
+  if (score == null || !Number.isFinite(Number(score))) {
+    return { word: "Unknown", color: "text-text-dim" };
+  }
+  const v = Number(score);
+  if (kind === "market") {
+    if (v >= 80) return { word: "Strong", color: "text-accent-green" };
+    if (v >= 60) return { word: "Mixed", color: "text-accent-yellow" };
+    return { word: "Weak", color: "text-accent-red" };
+  }
+  if (v >= 70) return { word: "Strong", color: "text-accent-green" };
+  if (v >= 40) return { word: "Mixed", color: "text-accent-yellow" };
+  return { word: "Weak", color: "text-accent-red" };
+}
+
 function PinnedSITBanner() {
   const { data, isLoading } = useQuery({
     queryKey: ["sit-pinned-swing"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("should_i_trade_latest_v")
-        .select("snapshot_date, mode, decision, market_quality_score, execution_window_score, narrative_text")
+        .select("snapshot_date, mode, decision, market_quality_score, execution_window_score, narrative_text, suggested_action")
         .eq("mode", "swing")
         .maybeSingle();
       if (error) throw error;
@@ -49,6 +72,9 @@ function PinnedSITBanner() {
     data.decision === "CAUTION" ? "text-accent-yellow" :
     "text-accent-red";
 
+  const market = scoreVerdict(data.market_quality_score, "market");
+  const timing = scoreVerdict(data.execution_window_score, "timing");
+
   return (
     <div className="terminal-card p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -57,19 +83,31 @@ function PinnedSITBanner() {
         </div>
         <div className="font-mono text-2xs text-text-dim">as of {data.snapshot_date}</div>
       </div>
-      <div className="flex items-baseline gap-5 flex-wrap">
+      <div className="flex items-baseline gap-6 flex-wrap">
         <div className={`font-mono text-3xl font-bold ${decisionColor}`}>{data.decision}</div>
-        <div className="font-mono text-sm text-text-secondary">
-          MQS{" "}
-          <span className="text-text-primary font-semibold">{num(data.market_quality_score, 1)}</span>
-          {"  ·  "}EWS{" "}
-          <span className={colorClass((data.execution_window_score ?? 50) - 50)}>
-            {num(data.execution_window_score, 1)}
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">Market</span>
+          <span className="font-mono text-sm font-semibold">
+            <span className={market.color}>{market.word}</span>{" "}
+            <span className="text-text-dim text-2xs tabular-nums">{num(data.market_quality_score, 1)}</span>
+          </span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">Timing</span>
+          <span className="font-mono text-sm font-semibold">
+            <span className={timing.color}>{timing.word}</span>{" "}
+            <span className="text-text-dim text-2xs tabular-nums">{num(data.execution_window_score, 1)}</span>
           </span>
         </div>
       </div>
+      {data.suggested_action && (
+        <div className="text-sm">
+          <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">What to do </span>
+          <span className={`font-mono font-semibold ${decisionColor}`}>{data.suggested_action}</span>
+        </div>
+      )}
       {data.narrative_text && (
-        <div className="text-xs text-text-secondary leading-relaxed border-t border-border-subtle pt-3 font-mono">
+        <div className="text-2xs text-text-dim leading-relaxed border-t border-border-subtle pt-3 font-mono">
           {data.narrative_text}
         </div>
       )}
