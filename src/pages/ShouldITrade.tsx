@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, colorClass } from "@/lib/format";
@@ -49,6 +50,22 @@ function useSIT() {
         .maybeSingle();
       if (error) throw error;
       return data as SITRow | null;
+    },
+    enabled: isSupabaseConfigured,
+  });
+}
+
+function useSITDay() {
+  return useQuery({
+    queryKey: ["sit-day-decision"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("should_i_trade_latest_v")
+        .select("decision")
+        .eq("mode", "day")
+        .maybeSingle();
+      if (error) throw error;
+      return data as { decision: string } | null;
     },
     enabled: isSupabaseConfigured,
   });
@@ -303,10 +320,109 @@ function buildMacro(
 
 const ICONS = { vol: "〰", trend: "↗", breadth: "⊞", momentum: "↑", macro: "●" };
 
+// ===== Plain-language verdict (dumbed-down summary on top of MQS/EWS) =====
+type Tone = "green" | "yellow" | "red";
+const TONE_TEXT: Record<Tone, string> = {
+  green: "text-accent-green",
+  yellow: "text-accent-yellow",
+  red: "text-accent-red",
+};
+const TONE_DOT_C: Record<Tone, string> = {
+  green: "bg-accent-green",
+  yellow: "bg-accent-yellow",
+  red: "bg-accent-red",
+};
+
+// "Market conditions" tracks the MQS bands the page already documents
+// (80 = YES, 60 = CAUTION). "Timing" tracks EWS using the engine's own
+// follow-through bands (>=70 strong, <40 weak).
+function ratingWord(v: number, kind: "market" | "timing"): { word: string; tone: Tone } {
+  if (kind === "market") {
+    if (v >= 80) return { word: "Strong", tone: "green" };
+    if (v >= 60) return { word: "Mixed", tone: "yellow" };
+    return { word: "Weak", tone: "red" };
+  }
+  if (v >= 70) return { word: "Strong", tone: "green" };
+  if (v >= 40) return { word: "Mixed", tone: "yellow" };
+  return { word: "Weak", tone: "red" };
+}
+
+// Collapses the two scores into one human call. swing already encodes the
+// MQS YES/CAUTION/NO logic; we layer the EWS (timing) read on top.
+function plainVerdict(ews: number, swing: string): { tone: Tone; headline: string; sentence: string } {
+  if (swing === "NO")
+    return { tone: "red", headline: "SIT OUT", sentence: "Conditions are poor right now — best to stay flat and protect capital." };
+  if (swing === "YES" && ews < 40)
+    return { tone: "yellow", headline: "GOOD MARKET — WAIT", sentence: "The market's in good shape, but entries aren't lining up yet. Be patient." };
+  if (swing === "YES" && ews >= 70)
+    return { tone: "green", headline: "GO", sentence: "Conditions and timing both favor trading." };
+  if (swing === "YES")
+    return { tone: "green", headline: "FAVORABLE", sentence: "Good conditions and workable entries — be selective with size." };
+  if (ews >= 55)
+    return { tone: "yellow", headline: "CAUTION", sentence: "Mixed conditions but timing is okay — trade light and stay selective." };
+  return { tone: "yellow", headline: "CAUTION", sentence: "Mixed conditions and shaky timing — keep size small or wait for it to clear." };
+}
+
+function VerdictCard({
+  mqs, ews, swing, day, expanded, onToggle,
+}: {
+  mqs: number; ews: number; swing: string; day: string | undefined;
+  expanded: boolean; onToggle: () => void;
+}) {
+  const v = plainVerdict(ews, swing);
+  const mkt = ratingWord(mqs, "market");
+  const tim = ratingWord(ews, "timing");
+  return (
+    <div className="terminal-card p-5">
+      <div className="flex items-start gap-3">
+        <span className={`inline-block w-3 h-3 rounded-full mt-1 shrink-0 ${TONE_DOT_C[v.tone]} signal-glow-cyan`} />
+        <div className="min-w-0">
+          <div className={`font-mono text-lg sm:text-xl font-bold tracking-tight ${TONE_TEXT[v.tone]}`}>
+            {v.headline}
+          </div>
+          <div className="text-sm text-text-secondary font-mono mt-0.5">{v.sentence}</div>
+        </div>
+      </div>
+      <div className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-2 max-w-md">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-2xs text-text-dim mono uppercase tracking-widest">Market conditions</span>
+          <span className="font-mono text-sm">
+            <span className={`font-semibold ${TONE_TEXT[mkt.tone]}`}>{mkt.word}</span>{" "}
+            <span className="text-text-dim text-2xs">{Math.round(mqs)}/100</span>
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-2xs text-text-dim mono uppercase tracking-widest">Timing</span>
+          <span className="font-mono text-sm">
+            <span className={`font-semibold ${TONE_TEXT[tim.tone]}`}>{tim.word}</span>{" "}
+            <span className="text-text-dim text-2xs">{Math.round(ews)}/100</span>
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 pt-3 border-t border-border-subtle flex items-center justify-between gap-3 flex-wrap">
+        <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
+          Swing: <span className={decText(swing)}>{swing}</span>
+          <span className="mx-2 text-border-subtle">·</span>
+          Day: <span className={day ? decText(day) : "text-text-dim"}>{day ?? "—"}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          className="font-mono text-2xs text-accent-cyan hover:underline uppercase tracking-widest"
+        >
+          {expanded ? "Hide details ▴" : "Why? ▾"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ShouldITrade() {
   const { data, isLoading } = useSIT();
   const { data: sectors } = useSectors();
   const { data: dxy } = useDxy();
+  const { data: dayRow } = useSITDay();
+  const [showDetail, setShowDetail] = useState(false);
 
   if (!isSupabaseConfigured) return <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">Supabase not configured.</div>;
   if (isLoading) return <div className="terminal-card p-6"><div className="font-mono text-xs text-text-dim">Loading…</div></div>;
@@ -332,6 +448,17 @@ export default function ShouldITrade() {
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
       </div>
 
+      <VerdictCard
+        mqs={Number(data.market_quality_score)}
+        ews={ews}
+        swing={data.decision}
+        day={dayRow?.decision}
+        expanded={showDetail}
+        onToggle={() => setShowDetail((s) => !s)}
+      />
+
+      {showDetail && (
+        <>
       <div className="terminal-card p-5">
         <div className="flex items-center gap-5 flex-wrap">
           <div className="shrink-0 text-center">
@@ -432,6 +559,8 @@ export default function ShouldITrade() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
