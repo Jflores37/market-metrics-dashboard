@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { usdCompact, num } from "@/lib/format";
 import Sparkline from "@/components/macro/Sparkline";
 import SignalDonut from "@/components/macro/SignalDonut";
 
@@ -188,6 +189,23 @@ function BottomLineCard({ narrative }: { narrative: string }) {
   );
 }
 
+// Format from the raw value + unit so large billions roll up to trillions
+// ($38.51T, not $38514B) with correct sign placement. The server-built
+// `display` is the fallback for any unit we don't special-case.
+function fiscalDisplay(row: FiscalRow): string {
+  if (row.value == null) return "—";
+  switch (row.usd_unit) {
+    case "millions":
+      return usdCompact(row.value, "millions");
+    case "billions":
+      return usdCompact(row.value, "billions");
+    case "percent":
+      return `${num(row.value, 1)}%`;
+    default:
+      return row.display;
+  }
+}
+
 function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
   return (
     <div className="terminal-card p-4">
@@ -204,7 +222,7 @@ function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
               {row.label}
             </span>
             <span className="font-mono text-sm font-semibold text-text-primary tabular-nums shrink-0">
-              {row.display}
+              {fiscalDisplay(row)}
             </span>
           </div>
         ))}
