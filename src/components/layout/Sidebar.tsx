@@ -1,29 +1,41 @@
 import { NavLink } from "react-router-dom";
 import { TABS } from "@/lib/tabs";
 
-export default function Sidebar() {
+export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   return (
-    <aside className="md:w-56 lg:w-60 shrink-0 border-b md:border-b-0 md:border-r border-border bg-bg-card md:min-h-screen md:sticky md:top-0">
-      <div className="p-4 border-b border-border-subtle hidden md:block">
-        <div className="font-mono text-xl font-bold tracking-tight text-accent-orange">
-          Pulse
+    <aside className="md:w-[168px] shrink-0 border-b md:border-b-0 md:border-r border-border bg-bg-card md:min-h-screen md:sticky md:top-0">
+      <div className="p-4 border-b border-border-subtle hidden md:flex items-start justify-between gap-2">
+        <div>
+          <div className="font-mono text-xl font-bold tracking-tight text-accent-cyan signal-glow-cyan">
+            Pulse
+          </div>
+          <div className="text-2xs text-text-dim mono mt-0.5 uppercase tracking-widest">
+            market terminal
+          </div>
         </div>
-        <div className="text-2xs text-text-dim mono mt-0.5 uppercase tracking-widest">
-          market terminal
-        </div>
+        <button
+          type="button"
+          onClick={onCollapse}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          className="text-text-dim hover:text-accent-cyan hover:bg-bg-hover transition-colors w-6 h-6 flex items-center justify-center rounded-[2px] text-sm leading-none"
+        >
+          ‹
+        </button>
       </div>
 
-      <nav className="p-2 md:p-3 flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible">
+      {/* Desktop: stacked card-buttons. Mobile: horizontal scroll pills. */}
+      <nav className="p-3 flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible">
         {TABS.map((tab) => (
           <NavLink
             key={tab.key}
             to={tab.path}
             end={tab.path === "/"}
             className={({ isActive }) =>
-              `px-3 py-2 text-sm font-mono uppercase tracking-wider transition-colors whitespace-nowrap rounded-md border ${
+              `block px-2.5 py-2 rounded-[4px] border text-2xs font-mono font-semibold tracking-tight transition-colors whitespace-nowrap text-center md:text-left ${
                 isActive
-                  ? "text-accent-orange bg-bg-panel border-border"
-                  : "text-text-secondary border-transparent hover:text-text-primary hover:bg-bg-hover"
+                  ? "bg-accent-cyan/[0.12] border-accent-cyan text-accent-cyan shadow-[inset_0_0_0_1px_hsl(185_70%_55%/0.2)]"
+                  : "bg-bg-card border-border-subtle text-text-secondary hover:text-text-primary hover:border-accent-cyan hover:bg-bg-hover"
               }`
             }
           >

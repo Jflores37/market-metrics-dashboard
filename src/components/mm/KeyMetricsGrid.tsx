@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
+import { finvizScreenerUrl } from "@/lib/finviz";
 
 interface KeyMetricRow {
   universe_id: string;
@@ -22,6 +23,13 @@ type MetricEntry = {
 };
 
 const UNIVERSES = ["NQ100", "SPY500", "DJIA", "RUS2000", "$1B+"];
+
+// Universe group banner shown above the column headers
+const UNIVERSE_GROUPS: Array<{ label: string; span: number }> = [
+  { label: "Major Indexes", span: 3 }, // NQ100 · SPY500 · DJIA
+  { label: "Broad",         span: 1 }, // RUS2000
+  { label: "Liquid",        span: 1 }, // $1B+
+];
 
 function pctTextColor(pct: number | null): string {
   if (pct == null) return "text-text-dim";
@@ -66,7 +74,9 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
       </td>
     );
   }
-  const total = row.above_count + (row.below_count ?? 0);
+  const aboveUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "above");
+  const belowUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "below");
+  const linkCls = "hover:text-accent-cyan hover:underline transition-colors";
   return (
     <td className="py-1.5 px-2 text-right align-top">
       <div className="space-y-0.5">
@@ -74,7 +84,21 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
           {row.pct != null ? `${num(row.pct, 0)}%` : "—"}
         </div>
         <div className="font-mono text-2xs text-text-dim tabular-nums">
-          {row.above_count}/{total}
+          {aboveUrl ? (
+            <a href={aboveUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              {row.above_count}
+            </a>
+          ) : (
+            row.above_count
+          )}
+          {"/"}
+          {belowUrl && (row.below_count ?? 0) > 0 ? (
+            <a href={belowUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              {row.below_count ?? 0}
+            </a>
+          ) : (
+            row.below_count ?? 0
+          )}
         </div>
         <div className="h-0.5 bg-bg-panel rounded-full overflow-hidden">
           <div
@@ -125,9 +149,9 @@ export default function KeyMetricsGrid() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⊞</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⊞</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Key Metrics · 5 universes × 19 rows
+            Key Metrics · {UNIVERSES.length} universes × {metrics.length} rows
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim">
@@ -138,6 +162,18 @@ export default function KeyMetricsGrid() {
       <div className="overflow-x-auto">
         <table className="w-full font-mono min-w-[680px]">
           <thead className="border-b border-border-subtle">
+            <tr className="border-b border-border-subtle/60">
+              <th className="py-1 px-2" />
+              {UNIVERSE_GROUPS.map((g, i) => (
+                <th
+                  key={i}
+                  colSpan={g.span}
+                  className="py-1 px-2 text-center text-2xs text-accent-cyan uppercase tracking-widest font-semibold"
+                >
+                  {g.label}
+                </th>
+              ))}
+            </tr>
             <tr>
               <th className="py-2 px-2 text-left text-2xs text-text-dim uppercase tracking-wider">
                 Metric

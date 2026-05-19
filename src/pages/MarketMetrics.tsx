@@ -1,13 +1,28 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-  LineChart, Line, BarChart, Bar, Cell, ReferenceLine, Tooltip, ResponsiveContainer,
+  LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, ReferenceLine, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
+import {
+  chartColors,
+  tooltipContentStyle,
+  tooltipLabelStyle,
+  tooltipItemStyle,
+  tooltipCursor,
+  tooltipCursorFill,
+  referenceLineStroke,
+} from "@/lib/chartTheme";
 import { TickerLink } from "@/components/TickerChartModal";
+import CsvButton from "@/components/ui/CsvButton";
 import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
-import IndustryThemeBlocks from "@/components/mm/IndustryThemeBlocks";
+import {
+  LeadingIndustriesTable,
+  ThematicsByThemeTable,
+  ThematicsBySectorTable,
+  ThematicsTopMovers,
+} from "@/components/mm/IndustryThemeBlocks";
 import RRGScatter from "@/components/mm/RRGScatter";
 import SP500Landscape from "@/components/mm/SP500Landscape";
 
@@ -92,7 +107,7 @@ function SectorGrid() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◆</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◆</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Sector SPDRs</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
@@ -117,7 +132,7 @@ function SectorGrid() {
               <tr key={row.ticker} className={`border-b border-border-subtle/40 hover:bg-bg-hover ${row.is_benchmark ? "bg-bg-panel/40" : ""}`}>
                 <td className="py-1 pl-1">
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
-                  {row.is_benchmark && <span className="text-2xs text-accent-orange ml-1">·</span>}
+                  {row.is_benchmark && <span className="text-2xs text-accent-amber ml-1">·</span>}
                 </td>
                 <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
@@ -169,10 +184,30 @@ function WatchlistTable() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">★</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">★</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Watchlist</span>
         </div>
-        <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono text-2xs text-text-dim">{data.length} symbols</span>
+          <CsvButton
+            filename="watchlist.csv"
+            rows={data}
+            columns={[
+              { header: "Ticker",   value: (r) => r.ticker },
+              { header: "Sector",   value: (r) => r.sector ?? "" },
+              { header: "Industry", value: (r) => r.industry ?? "" },
+              { header: "Price",    value: (r) => r.price },
+              { header: "MarketCapM", value: (r) => r.market_cap_millions },
+              { header: "PerfDay",  value: (r) => r.perf_day },
+              { header: "PerfWeek", value: (r) => r.perf_week },
+              { header: "PerfMonth",value: (r) => r.perf_month },
+              { header: "PerfYear", value: (r) => r.perf_year },
+              { header: "VsSMA50",  value: (r) => r.sma50_pct },
+              { header: "RSI14",    value: (r) => r.rsi14 },
+              { header: "ATRpct",   value: (r) => r.atr_pct },
+            ]}
+          />
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs font-mono min-w-[760px]">
@@ -261,7 +296,7 @@ function StageAnalysisCard() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◫</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◫</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stage Analysis · Weinstein 10 substages</span>
         </div>
         <span className="font-mono text-2xs text-text-dim tabular-nums">{universe.toLocaleString()} stocks</span>
@@ -330,7 +365,7 @@ function StockbeeBreadthCard() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⊟</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⊟</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Breadth</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.observation_date}</span>
@@ -408,7 +443,7 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
 
   const last = data[data.length - 1]?.value ?? 0;
   const useBar = type === "fourpct_net" || type === "qtr_net";
-  const lineColor = last >= (refLine ?? 0) ? "#3fb950" : "#f85149";
+  const lineColor = last >= (refLine ?? 0) ? chartColors.green : chartColors.red;
   const displayValue = type === "ratio5" || type === "t2108" ? num(last, 2) : `${last > 0 ? "+" : ""}${Math.round(last)}`;
   const displayColor =
     type === "ratio5" ? (last >= 1 ? "text-accent-green" : "text-accent-red") :
@@ -423,31 +458,78 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
         <ResponsiveContainer width="100%" height="100%">
           {useBar ? (
             <BarChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              <ReferenceLine y={0} stroke="#30363d" strokeWidth={1} />
+              <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} />
               <Bar dataKey="value">
                 {data.map((d, i) => (
-                  <Cell key={i} fill={d.value >= 0 ? "#3fb950" : "#f85149"} />
+                  <Cell key={i} fill={d.value >= 0 ? chartColors.green : chartColors.red} />
                 ))}
               </Bar>
               <Tooltip
-                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
-                cursor={{ fill: "rgba(48,54,61,0.3)" }}
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle}
+                cursor={tooltipCursorFill}
                 formatter={(v: any) => [v > 0 ? `+${v}` : `${v}`, ""]}
               />
             </BarChart>
           ) : (
             <LineChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-              {refLine !== undefined && <ReferenceLine y={refLine} stroke="#30363d" strokeWidth={1} strokeDasharray="2 2" />}
+              {refLine !== undefined && <ReferenceLine y={refLine} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />}
               <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
               <Tooltip
-                contentStyle={{ backgroundColor: "#161b22", border: "1px solid #30363d", fontSize: 10, fontFamily: "JetBrains Mono, monospace", padding: "4px 6px", borderRadius: 4 }}
-                labelStyle={{ color: "#8b949e" }} itemStyle={{ color: "#e6edf3" }}
-                cursor={{ stroke: "#30363d" }}
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle}
+                cursor={tooltipCursor}
                 formatter={(v: any) => [num(v, 2), ""]}
               />
             </LineChart>
           )}
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function Sp500HistoryChart() {
+  const { data } = useStockbeeHistory();
+  if (!data || data.length === 0) return null;
+  const points = data.map((d) => ({ date: d.observation_date, value: Number(d.sp500_level) }));
+  const first = points[0]?.value ?? 0;
+  const last = points[points.length - 1]?.value ?? 0;
+  const change = last - first;
+  const changePct = first ? (change / first) * 100 : 0;
+  const isUp = change >= 0;
+  const lineColor = isUp ? chartColors.green : chartColors.red;
+
+  return (
+    <div className="terminal-card p-4">
+      <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
+        <div className="flex items-baseline gap-2">
+          <span className="text-accent-cyan text-sm signal-glow-cyan">📈</span>
+          <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
+            S&amp;P 500 · 60-day
+          </span>
+        </div>
+        <div className="flex items-baseline gap-3 font-mono text-2xs">
+          <span className="text-text-primary tabular-nums">{num(last, 2)}</span>
+          <span className={`tabular-nums ${isUp ? "text-accent-green" : "text-accent-red"}`}>
+            {isUp ? "+" : ""}{num(change, 2)} ({isUp ? "+" : ""}{num(changePct, 2)}%)
+          </span>
+        </div>
+      </div>
+      <div className="h-32">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={points} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+            <XAxis dataKey="date" hide />
+            <YAxis domain={["auto", "auto"]} hide />
+            <Line type="monotone" dataKey="value" stroke={lineColor} strokeWidth={1.5} dot={false} />
+            <Tooltip
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
+              cursor={tooltipCursor}
+              formatter={(v: any) => [num(v, 2), "SPX"]}
+            />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </div>
@@ -460,7 +542,7 @@ function StockbeeHistoryCharts() {
   return (
     <div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest mb-2 flex items-baseline gap-2">
-        <span className="text-accent-orange">▦</span>
+        <span className="text-accent-cyan signal-glow-cyan">▦</span>
         Stockbee · 60-day history
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -490,7 +572,7 @@ function StockbeeMomentum50() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">⚡</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">⚡</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Stockbee Momentum 50</span>
         </div>
         <span className="font-mono text-2xs text-text-dim">{data.observation_date} · {data.tickers.length} tickers</span>
@@ -512,8 +594,8 @@ export default function MarketMetrics() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">⊞</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Market Metrics</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">⊞</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Market Metrics</h1>
           <span className="text-xs text-text-dim mono">— Universe breadth · sectors · stages</span>
         </div>
       </header>
@@ -532,10 +614,15 @@ export default function MarketMetrics() {
       <WatchlistTable />
 
       <StockbeeBreadthCard />
+      <Sp500HistoryChart />
       <StockbeeHistoryCharts />
       <StockbeeMomentum50 />
 
-      <IndustryThemeBlocks />
+      <LeadingIndustriesTable />
+      <ThematicsByThemeTable />
+      <ThematicsBySectorTable />
+      <ThematicsTopMovers />
+
       <RRGScatter />
       <SP500Landscape />
     </div>

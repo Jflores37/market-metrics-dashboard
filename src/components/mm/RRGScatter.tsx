@@ -4,6 +4,7 @@ import {
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
+import { chartColors, axisTickStyle, axisStroke, referenceLineStroke } from "@/lib/chartTheme";
 
 type Quadrant = "leading" | "weakening" | "lagging" | "improving";
 
@@ -25,10 +26,10 @@ interface TrailRow {
 }
 
 const QUADRANT_COLOR: Record<Quadrant, string> = {
-  leading: "#3fb950",
-  weakening: "#d29922",
-  lagging: "#f85149",
-  improving: "#58a6ff",
+  leading: chartColors.green,
+  weakening: chartColors.amber,
+  lagging: chartColors.red,
+  improving: chartColors.cyan,
 };
 
 function useRRG() {
@@ -68,11 +69,11 @@ function CustomTooltip({ active, payload }: any) {
 
 function renderCurrentDot(props: any) {
   const { cx, cy, payload } = props;
-  const color = QUADRANT_COLOR[payload.quadrant as Quadrant] || "#8b949e";
+  const color = QUADRANT_COLOR[payload.quadrant as Quadrant] || chartColors.textSecondary;
   return (
     <g key={`g-${payload.ticker}`}>
-      <circle cx={cx} cy={cy} r={7} fill={color} stroke="#0a0e14" strokeWidth={1.5} />
-      <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill="#e6edf3" fontWeight={600}>
+      <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
+      <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
         {payload.ticker}
       </text>
     </g>
@@ -81,7 +82,7 @@ function renderCurrentDot(props: any) {
 
 function renderTrailDot(props: any) {
   const { cx, cy } = props;
-  return <circle cx={cx} cy={cy} r={2} fill="#6e7681" opacity={0.35} />;
+  return <circle cx={cx} cy={cy} r={2} fill={chartColors.textDim} opacity={0.35} />;
 }
 
 export default function RRGScatter() {
@@ -111,7 +112,7 @@ export default function RRGScatter() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◎</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◎</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             RRG · Sector Rotation
           </span>
@@ -138,22 +139,22 @@ export default function RRGScatter() {
             <ReferenceArea x1={xDomain[0]} x2={100} y1={yDomain[0]} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />
             <ReferenceArea x1={xDomain[0]} x2={100} y1={100} y2={yDomain[1]} fill={QUADRANT_COLOR.improving} fillOpacity={0.06} />
 
-            <ReferenceLine x={100} stroke="#30363d" strokeWidth={1} />
-            <ReferenceLine y={100} stroke="#30363d" strokeWidth={1} />
+            <ReferenceLine x={100} stroke={referenceLineStroke} strokeWidth={1} />
+            <ReferenceLine y={100} stroke={referenceLineStroke} strokeWidth={1} />
 
             <XAxis
               type="number"
               dataKey="rs_ratio"
               domain={xDomain}
-              tick={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", fill: "#6e7681" }}
-              stroke="#30363d"
+              tick={axisTickStyle}
+              stroke={axisStroke}
             />
             <YAxis
               type="number"
               dataKey="rs_momentum"
               domain={yDomain}
-              tick={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace", fill: "#6e7681" }}
-              stroke="#30363d"
+              tick={axisTickStyle}
+              stroke={axisStroke}
             />
 
             <Scatter name="trail" data={data.trails} shape={renderTrailDot} />

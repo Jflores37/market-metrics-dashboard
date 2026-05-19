@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, colorClass } from "@/lib/format";
+import { chartColors } from "@/lib/chartTheme";
 import CategoryPanel, {
   type DetailRow,
   type BadgeTone,
@@ -27,9 +28,9 @@ interface SITRow {
   narrative_text: string | null;
   suggested_action: string | null;
   raw_inputs: {
-    volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null };
+    volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null; vvix?: number | null };
     trend?: { spy_above_20: boolean | null; spy_above_50: boolean | null; spy_above_200: boolean | null; qqq_above_50: boolean | null; regime: string };
-    breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; new_highs: number | null; new_lows: number | null };
+    breadth?: { pct_above_20: number | null; pct_above_50: number | null; pct_above_200: number | null; ratio5: number | null; up4: number | null; down4: number | null; new_highs: number | null; new_lows: number | null };
     momentum?: { sectors: Array<{ ticker: string; chg: number | null }>; top3: Array<{ ticker: string; chg: number | null }>; bottom3: Array<{ ticker: string; chg: number | null }>; spread: number | null };
     macro?: { tnx: number | null; tnx_5d_trend: number | null };
   };
@@ -67,6 +68,34 @@ function useSectors() {
   });
 }
 
+// USD Broad Index (FRED DTWEXBGS) — DXY proxy. raw_inputs.macro doesn't
+// carry it, so read macro_observations directly: latest level + ~1-week
+// (5 business day) % change for a direction read.
+function useDxy() {
+  return useQuery({
+    queryKey: ["sit-dxy"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("macro_observations")
+        .select("observation_date, value")
+        .eq("series_id", "DTWEXBGS")
+        .order("observation_date", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      const rows = (data ?? []) as { observation_date: string; value: number | null }[];
+      if (rows.length === 0) return null;
+      const latest = rows[0]?.value != null ? Number(rows[0].value) : null;
+      const prior = rows[5]?.value != null ? Number(rows[5].value) : null;
+      const pctChg =
+        latest != null && prior != null && prior !== 0
+          ? ((latest - prior) / prior) * 100
+          : null;
+      return { latest, pctChg };
+    },
+    enabled: isSupabaseConfigured,
+  });
+}
+
 const decBorder = (d: string) => d === "YES" ? "border-accent-green" : d === "CAUTION" ? "border-accent-yellow" : "border-accent-red";
 const decText = (d: string) => d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
 
@@ -76,18 +105,18 @@ function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
   const r = size / 2 - 8; const sw = 7;
   const c = 2 * Math.PI * r;
   const dash = (v / 100) * c;
-  const color = v >= 80 ? "#3fb950" : v >= 60 ? "#d29922" : "#f85149";
+  const color = v >= 80 ? chartColors.green : v >= 60 ? chartColors.amber : chartColors.red;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1c2128" strokeWidth={sw} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={chartColors.border} strokeWidth={sw} />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${dash.toFixed(2)} ${c.toFixed(2)}`}
         strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`} />
       <text x={cx} y={cy - 2} textAnchor="middle" dominantBaseline="middle"
-        fill="#e6edf3" fontFamily="JetBrains Mono, monospace" fontSize={26} fontWeight={700}>
+        fill={chartColors.textPrimary} fontFamily="JetBrains Mono, monospace" fontSize={26} fontWeight={700}>
         {Math.round(v)}
       </text>
-      <text x={cx} y={cy + 17} textAnchor="middle" fill="#6e7681"
+      <text x={cx} y={cy + 17} textAnchor="middle" fill={chartColors.textDim}
         fontFamily="JetBrains Mono, monospace" fontSize={9}>/ 100</text>
     </svg>
   );
@@ -97,7 +126,7 @@ function ScoreChip({ icon, name, score }: { icon: string; name: string; score: n
   const v = score == null ? 0 : Number(score);
   return (
     <div className="flex flex-col gap-1.5 text-center min-w-[80px]">
-      <div className="text-accent-orange text-sm">{icon}</div>
+      <div className="text-accent-cyan text-sm signal-glow-cyan">{icon}</div>
       <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">{name}</div>
       <div className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(score)}`}>{num(score, 0)}</div>
       <div className="h-1 bg-bg-panel rounded-full overflow-hidden">
@@ -166,14 +195,18 @@ function buildVolatility(r: SITRow["raw_inputs"]): DetailRow[] {
   const vix = v?.vix ?? null;
   const slope = v?.vix_5d_slope ?? null;
   const pctile = v?.vix_1y_pct ?? null;
+  const vvix = v?.vvix ?? null;
   const vixTone: BadgeTone = vix == null ? "gray" : vix < 15 ? "green" : vix < 20 ? "yellow" : "red";
   const slopeTone: BadgeTone = slope == null ? "gray" : Math.abs(slope) < 0.3 ? "yellow" : slope > 0 ? "red" : "green";
   const pctileTone: BadgeTone = pctile == null ? "gray" : pctile < 33 ? "green" : pctile < 67 ? "yellow" : "red";
+  // VVIX is "VIX of VIX" — high VVIX means traders expect VIX itself to be volatile (uncertainty).
+  // Typical: ~80=calm, ~95=normal, >110=elevated. Below 80 = unusually calm.
+  const vvixTone: BadgeTone = vvix == null ? "gray" : vvix < 85 ? "green" : vvix < 105 ? "yellow" : "red";
   return [
     { label: "VIX Level", value: vix != null ? num(vix, 2) : "—", badge: vixTone === "green" ? "Low" : vixTone === "yellow" ? "Normal" : "Elevated", badgeTone: vixTone },
     { label: "VIX Trend", value: slope == null ? "—" : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badge: slope == null ? null : slope > 0.3 ? "Rising" : slope < -0.3 ? "Falling" : "Flat", badgeTone: slopeTone },
     { label: "VIX 1Y %ile", value: pctile != null ? `${Math.round(pctile)}th` : "—", badge: pctileTone === "green" ? "Low" : pctileTone === "yellow" ? "Normal" : "High", badgeTone: pctileTone },
-    { label: "Put/Call", value: "—", badge: "Neutral", badgeTone: "gray" },
+    { label: "VVIX", value: vvix != null ? num(vvix, 1) : "—", badge: vvixTone === "green" ? "Calm" : vvixTone === "yellow" ? "Normal" : "Stressed", badgeTone: vvixTone },
   ];
 }
 
@@ -194,12 +227,19 @@ function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
   const b = r.breadth;
   const fmtP = (n: number | null | undefined) => n == null ? "—" : `${num(n, 1)}%`;
   const toneP = (n: number | null | undefined): BadgeTone => n == null ? "gray" : n >= 60 ? "green" : n >= 40 ? "yellow" : "red";
-  const r5 = b?.ratio5 ?? null;
+  const up4 = b?.up4 ?? null;
+  const down4 = b?.down4 ?? null;
+  const ad = up4 != null && down4 != null && down4 > 0 ? up4 / down4 : null;
+  const adValue = ad != null
+    ? `${num(ad, 1)}:1`
+    : up4 != null || down4 != null
+      ? `${up4 ?? 0}/${down4 ?? 0}`
+      : "—";
   return [
     { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: "Neutral", badgeTone: toneP(b?.pct_above_50) },
     { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: "Neutral", badgeTone: toneP(b?.pct_above_200) },
     { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: "Neutral", badgeTone: toneP(b?.pct_above_20) },
-    { label: "NYSE A/D", value: r5 != null ? `${num(r5, 2)}:1` : "—", badge: r5 == null ? "—" : r5 > 1.1 ? "Positive" : r5 < 0.9 ? "Negative" : "Flat", badgeTone: r5 == null ? "gray" : r5 > 1.1 ? "green" : r5 < 0.9 ? "red" : "yellow" },
+    { label: "NYSE A/D", value: adValue, badge: ad == null ? "—" : ad > 1 ? "Positive" : ad < 1 ? "Negative" : "Flat", badgeTone: ad == null ? "gray" : ad > 1 ? "green" : ad < 1 ? "red" : "yellow" },
     { label: "NAS Highs/Lows", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
   ];
 }
@@ -236,14 +276,28 @@ function buildMomentum(r: SITRow["raw_inputs"], sectorLabel: (t: string) => stri
   ];
 }
 
-function buildMacro(r: SITRow["raw_inputs"]): DetailRow[] {
+function buildMacro(
+  r: SITRow["raw_inputs"],
+  dxy: { latest: number | null; pctChg: number | null } | null,
+): DetailRow[] {
   const m = r.macro;
   const yld = m?.tnx ?? null;
   const tr = m?.tnx_5d_trend ?? null;
+  // Rising USD = headwind for risk; falling = tailwind. Flat band ±0.5%/wk.
+  const dxyVal = dxy?.latest ?? null;
+  const dxyChg = dxy?.pctChg ?? null;
+  const dxyBadge =
+    dxyChg == null ? "—" : dxyChg > 0.5 ? "Rising" : dxyChg < -0.5 ? "Falling" : "Flat";
+  const dxyTone: BadgeTone =
+    dxyChg == null ? "gray" : dxyChg > 0.5 ? "red" : dxyChg < -0.5 ? "green" : "yellow";
   return [
-    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : Math.abs(tr) < 0.05 ? "yellow" : "yellow" },
-    { label: "DXY", value: "—", badge: "Monitor", badgeTone: "gray" },
-    { label: "Geopolitical", value: "—", badge: "Monitor", badgeTone: "gray" },
+    { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : tr > 0.05 ? "red" : tr < -0.05 ? "green" : "yellow" },
+    {
+      label: "DXY",
+      value: dxyVal != null ? num(dxyVal, 2) : "—",
+      badge: dxyChg != null ? `${dxyBadge} ${pct(dxyChg, 2)}` : dxyBadge,
+      badgeTone: dxyTone,
+    },
   ];
 }
 
@@ -252,6 +306,7 @@ const ICONS = { vol: "〰", trend: "↗", breadth: "⊞", momentum: "↑", macro
 export default function ShouldITrade() {
   const { data, isLoading } = useSIT();
   const { data: sectors } = useSectors();
+  const { data: dxy } = useDxy();
 
   if (!isSupabaseConfigured) return <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">Supabase not configured.</div>;
   if (isLoading) return <div className="terminal-card p-6"><div className="font-mono text-xs text-text-dim">Loading…</div></div>;
@@ -264,7 +319,7 @@ export default function ShouldITrade() {
   const trendRows = buildTrend(raw);
   const breadthRows = buildBreadth(raw);
   const momentumRows = buildMomentum(raw, sectorLabel);
-  const macroRows = buildMacro(raw);
+  const macroRows = buildMacro(raw, dxy ?? null);
 
   const positionSize = data.decision === "YES" ? "FULL" : data.decision === "CAUTION" ? "HALF" : "NONE";
   const ews = data.execution_window_score ?? 0;
@@ -273,7 +328,7 @@ export default function ShouldITrade() {
   return (
     <div className="space-y-3">
       <div className="flex items-baseline gap-3 flex-wrap pb-1">
-        <h1 className="font-mono text-xl font-bold tracking-tight">SHOULD I BE TRADING?</h1>
+        <h1 className="font-mono text-xl font-bold tracking-tight text-text-primary signal-glow-green">SHOULD I BE TRADING?</h1>
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
       </div>
 
@@ -317,7 +372,7 @@ export default function ShouldITrade() {
         <div className="terminal-card p-5">
           <div className="flex items-baseline justify-between mb-3">
             <div className="flex items-baseline gap-2">
-              <span className="text-accent-orange">◐</span>
+              <span className="text-accent-cyan signal-glow-cyan">◐</span>
               <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Execution Window</span>
             </div>
             <span className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(ews)}`}>{num(ews, 0)}</span>
@@ -345,7 +400,7 @@ export default function ShouldITrade() {
       <div className="grid lg:grid-cols-2 gap-3">
         <div className="terminal-card p-5">
           <div className="flex items-baseline gap-2 mb-4">
-            <span className="text-accent-orange">〰</span>
+            <span className="text-accent-cyan signal-glow-cyan">〰</span>
             <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Scoring Weights</span>
           </div>
           <div className="space-y-2.5">

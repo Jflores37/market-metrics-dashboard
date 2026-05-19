@@ -59,7 +59,7 @@ interface TopMoverRow {
 }
 
 // ===== Leading Industries =====
-function LeadingIndustriesTable() {
+export function LeadingIndustriesTable() {
   const { data } = useQuery({
     queryKey: ["mm-leading-industries"],
     queryFn: async () => {
@@ -80,7 +80,7 @@ function LeadingIndustriesTable() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">▤</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">▤</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             Leading Industries
           </span>
@@ -134,7 +134,7 @@ function LeadingIndustriesTable() {
 }
 
 // ===== Thematics by Theme =====
-function ThematicsByThemeTable() {
+export function ThematicsByThemeTable() {
   const { data } = useQuery({
     queryKey: ["mm-thematics-theme"],
     queryFn: async () => {
@@ -154,7 +154,7 @@ function ThematicsByThemeTable() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◈</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◈</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             Thematics · by Theme
           </span>
@@ -208,7 +208,7 @@ function ThematicsByThemeTable() {
 }
 
 // ===== Thematics by Sector =====
-function ThematicsBySectorTable() {
+export function ThematicsBySectorTable() {
   const { data } = useQuery({
     queryKey: ["mm-thematics-sector"],
     queryFn: async () => {
@@ -227,7 +227,7 @@ function ThematicsBySectorTable() {
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-orange text-sm">◔</span>
+          <span className="text-accent-cyan text-sm signal-glow-cyan">◔</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
             Thematics · by Sector
           </span>
@@ -328,7 +328,7 @@ function TopMoverTable({
   );
 }
 
-function ThematicsTopMovers() {
+export function ThematicsTopMovers() {
   const { data } = useQuery({
     queryKey: ["mm-top-movers"],
     queryFn: async () => {

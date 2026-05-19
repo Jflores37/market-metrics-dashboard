@@ -1,7 +1,27 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import Sparkline from "@/components/macro/Sparkline";
 import SignalDonut from "@/components/macro/SignalDonut";
+
+const REFRESH_INTERVAL_MIN = 30;
+
+function NextRefreshIndicator({ generatedAt }: { generatedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const generated = new Date(generatedAt).getTime();
+  if (Number.isNaN(generated)) return null;
+  const nextMs = generated + REFRESH_INTERVAL_MIN * 60_000;
+  const remainingMin = Math.max(0, Math.round((nextMs - now) / 60_000));
+  return (
+    <span className="font-mono text-2xs text-text-dim uppercase tracking-widest tabular-nums">
+      next refresh ~{remainingMin}m
+    </span>
+  );
+}
 
 type Signal = "hawkish" | "dovish" | "neutral" | "tightening";
 
@@ -63,6 +83,8 @@ function useMacroDashboard() {
       return (data?.dashboard ?? null) as DashboardPayload | null;
     },
     enabled: isSupabaseConfigured,
+    // Keep the "next refresh ~Nm" countdown honest — actually refetch.
+    refetchInterval: REFRESH_INTERVAL_MIN * 60_000,
   });
 }
 
@@ -155,8 +177,8 @@ function SignalBalanceCard({ balance }: { balance: SignalBalance }) {
 
 function BottomLineCard({ narrative }: { narrative: string }) {
   return (
-    <div className="terminal-card p-5 border-l-4 border-l-accent-orange">
-      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+    <div className="terminal-card p-5 border-l-4 border-l-accent-amber">
+      <div className="font-mono text-2xs text-accent-amber uppercase tracking-widest mb-3 font-semibold signal-glow-amber">
         Bottom Line
       </div>
       <div className="text-sm text-text-secondary leading-relaxed font-mono">
@@ -169,7 +191,7 @@ function BottomLineCard({ narrative }: { narrative: string }) {
 function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
   return (
     <div className="terminal-card p-4">
-      <div className="font-mono text-2xs text-accent-orange uppercase tracking-widest mb-3 font-semibold">
+      <div className="font-mono text-2xs text-accent-cyan uppercase tracking-widest mb-3 font-semibold">
         {title}
       </div>
       <div className="space-y-3">
@@ -198,10 +220,11 @@ export default function MacroMonitor() {
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <span className="text-accent-blue text-base">◉</span>
-          <h1 className="font-mono text-base font-semibold text-accent-blue">Macro Monitor</h1>
+          <span className="text-accent-cyan text-base signal-glow-cyan">◉</span>
+          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Macro Monitor</h1>
           <span className="text-xs text-text-dim mono">— Policy & market signals</span>
         </div>
+        {data?.generated_at && <NextRefreshIndicator generatedAt={data.generated_at} />}
       </header>
 
       {!isSupabaseConfigured && (

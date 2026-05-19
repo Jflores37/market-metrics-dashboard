@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { chartColors } from "@/lib/chartTheme";
 
 interface SignalCounts {
   hawkish: number;
@@ -8,10 +9,10 @@ interface SignalCounts {
 }
 
 const SIGNAL_HEX = {
-  hawkish: "#f85149",
-  neutral: "#8b949e",
-  dovish: "#3fb950",
-  tightening: "#d29922",
+  hawkish: chartColors.red,
+  neutral: chartColors.textSecondary,
+  dovish: chartColors.green,
+  tightening: chartColors.amber,
 };
 
 interface CustomTooltipProps {
@@ -95,7 +96,7 @@ export default function SignalDonut({
             dataKey="value"
             startAngle={90}
             endAngle={-270}
-            stroke="#0a0e14"
+            stroke={chartColors.bg}
             strokeWidth={1.5}
           >
             {data.map((entry, i) => (

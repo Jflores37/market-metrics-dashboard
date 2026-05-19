@@ -1,16 +1,14 @@
-type Signal = "hawkish" | "dovish" | "neutral" | "tightening";
+import { signalStroke, chartColors, type SignalKey } from "@/lib/chartTheme";
+
+type Signal = SignalKey;
 
 interface SparkPoint {
   d: string;
   v: number | string | null;
 }
 
-export const signalStroke: Record<Signal, string> = {
-  hawkish: "#f85149",
-  dovish: "#3fb950",
-  neutral: "#8b949e",
-  tightening: "#d29922",
-};
+// Re-export for any existing consumers
+export { signalStroke };
 
 export default function Sparkline({
   points,
@@ -55,7 +53,7 @@ export default function Sparkline({
   const color =
     signal && signal in signalStroke
       ? signalStroke[signal as Signal]
-      : "#8b949e";
+      : chartColors.textSecondary;
 
   return (
     <svg

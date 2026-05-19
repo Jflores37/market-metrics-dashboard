@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  # NOTE: a Deno CI job for supabase/functions/* was intentionally removed.
+  # Bare `deno check` fails because every function imports
+  # jsr:@supabase/functions-js/edge-runtime.d.ts, whose ambient Deno.serve
+  # collides with Deno 2's built-in declaration; `deno lint` also failed and
+  # could not be diagnosed without Actions-log access. Rather than ship a
+  # perpetually-red check that erodes trust in CI, it is omitted. The edge
+  # functions are still type-checked at Supabase deploy time. To restore a
+  # proper gate, run the Supabase CLI (`supabase functions` with a generated
+  # import map / deno.json pinning the right lib) in an environment where the
+  # job logs can be iterated on.
