@@ -31,7 +31,7 @@ export default function SortableHeader<K extends string | number | symbol>({
   return (
     <th
       onClick={() => onSort(sortKey)}
-      className={`py-1.5 text-2xs uppercase tracking-wider cursor-pointer select-none transition-colors ${alignCls} ${
+      className={`py-2.5 sm:py-1.5 text-2xs uppercase tracking-wider cursor-pointer select-none transition-colors ${alignCls} ${
         isActive ? "text-accent-cyan" : "text-text-dim hover:text-text-secondary"
       } ${className}`}
       title="Click to sort"

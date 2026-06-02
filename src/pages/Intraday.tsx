@@ -98,7 +98,7 @@ function MoverTable({
       </div>
 
       <div className="overflow-x-auto overflow-y-auto max-h-[500px]">
-        <table className="w-full text-xs font-mono">
+        <table className="w-full text-xs font-mono tbl-readable">
           <thead className="sticky top-0 bg-bg-card border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 w-7">#</th>
@@ -289,7 +289,7 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[640px]">
+        <table className="w-full text-xs font-mono min-w-[640px] tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">When</th>

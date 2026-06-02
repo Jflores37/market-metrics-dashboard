@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { pct, colorClass } from "@/lib/format";
@@ -81,13 +82,19 @@ function TickerRow({ items }: { items: TickerItem[] }) {
 
 export default function TickerTape() {
   const { data } = useTickerTape();
+  // Tap to freeze the scroll so a number can be read on a touchscreen, where
+  // there's no hover to lean on. Desktop still pauses on hover (CSS).
+  const [paused, setPaused] = useState(false);
   if (!data || data.length === 0) return null;
 
   // Duplicate the row so the marquee animation can loop seamlessly
   // (translateX -50% lands the second copy exactly where the first started).
   return (
-    <div className="group border-b border-border-subtle bg-bg-panel overflow-hidden">
-      <div className="flex items-center py-2 whitespace-nowrap animate-marquee w-max">
+    <div
+      className="group border-b border-border-subtle bg-bg-panel overflow-hidden cursor-pointer"
+      onClick={() => setPaused((p) => !p)}
+    >
+      <div className={`flex items-center py-2 whitespace-nowrap animate-marquee w-max ${paused ? "[animation-play-state:paused]" : ""}`}>
         <TickerRow items={data} />
         <TickerRow items={data} />
       </div>

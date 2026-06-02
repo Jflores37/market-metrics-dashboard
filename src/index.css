@@ -159,3 +159,21 @@
     }
   }
 }
+
+/* ---- Mobile data tables (phone only, < sm) -------------------------------
+   Lose nothing: every column stays. But on a phone, pin the first column
+   (the row identity — ticker / metric / industry) so the dense horizontal
+   scroll keeps its anchor, and lift tiny 10px values to a readable 12px.
+   Both revert to the exact dense desktop look at >= 640px. */
+@media (max-width: 639px) {
+  .sticky-col-1 th:first-child,
+  .sticky-col-1 td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: hsl(220 20% 6%);
+  }
+  .tbl-readable td {
+    font-size: 0.75rem;
+  }
+}

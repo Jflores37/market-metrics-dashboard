@@ -331,7 +331,7 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
         <div className="font-mono text-2xs text-text-dim text-center py-6">No results</div>
       ) : (
         <div className="overflow-x-auto overflow-y-auto max-h-[360px] border border-border-subtle/60 rounded-[2px]">
-          <table className="w-full text-xs font-mono">
+          <table className="w-full text-xs font-mono sticky-col-1 tbl-readable">
             <thead className="border-b border-border-subtle bg-bg-card sticky top-0 z-10">
               <tr>
                 {cols.map((c, i) => (
@@ -448,7 +448,7 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
               Rel Vol | Change | Vol | ATR % | Earnings Date. We omit Rel Vol
               (not in equities_snapshot) and inline the earnings_time next to
               earnings_date for ANC-vs-BMO clarity. */}
-          <table className="w-full text-xs font-mono">
+          <table className="w-full text-xs font-mono sticky-col-1 tbl-readable">
             <thead className="border-b border-border-subtle bg-bg-card sticky top-0 z-10">
               <tr>
                 <SortableHeader<keyof EarningsThisWeek> label="Ticker"   sortKey="ticker"              activeKey={sortKey} dir={sortDir} onSort={toggle} className="pl-2" />

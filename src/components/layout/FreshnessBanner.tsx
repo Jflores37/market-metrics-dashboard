@@ -41,7 +41,7 @@ export default function FreshnessBanner() {
       role="alert"
       className="border-b border-accent-amber/40 bg-accent-amber/10 px-4 md:px-6 py-2"
     >
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-2xs">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-mono text-xs sm:text-2xs">
         <span className="text-accent-amber font-semibold uppercase tracking-widest">
           ⚠ Stale data
         </span>

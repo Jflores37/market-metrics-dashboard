@@ -160,7 +160,7 @@ export default function KeyMetricsGrid() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full font-mono min-w-[680px]">
+        <table className="w-full font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="border-b border-border-subtle/60">
               <th className="py-1 px-2" />
