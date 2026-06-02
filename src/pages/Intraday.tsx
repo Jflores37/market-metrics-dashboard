@@ -289,7 +289,7 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[640px] tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[640px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">When</th>

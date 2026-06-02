@@ -492,7 +492,7 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
     <div className="terminal-card p-3">
       <div className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold mb-1">{title}</div>
       <div className={`font-mono text-base tabular-nums font-semibold ${displayColor}`}>{displayValue}</div>
-      <div className="h-12 mt-1">
+      <div className="h-16 sm:h-12 mt-1">
         <ResponsiveContainer width="100%" height="100%">
           {useBar ? (
             <BarChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
@@ -618,7 +618,7 @@ function StockbeeMomentum50() {
       <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1.5">
         {data.tickers.map((t) => (
           <div key={t} className="bg-bg-panel rounded text-center hover:bg-bg-hover transition-colors">
-            <TickerLink ticker={t} className="block px-2 py-1 text-xs w-full" />
+            <TickerLink ticker={t} className="block px-2 py-2 sm:py-1 text-xs w-full" />
           </div>
         ))}
       </div>

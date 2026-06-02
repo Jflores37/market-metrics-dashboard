@@ -164,7 +164,7 @@ function SignalBalanceCard({ balance }: { balance: SignalBalance }) {
         {balance.dominant_label}
       </div>
 
-      <div className="flex items-center gap-5 flex-wrap justify-around flex-1">
+      <div className="flex flex-col items-center gap-5 md:flex-row md:flex-wrap md:justify-around flex-1">
         <div className="shrink-0">
           <SignalDonut counts={balance.counts} dominantLabel={balance.dominant_label} size={180} />
         </div>

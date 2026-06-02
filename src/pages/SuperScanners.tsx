@@ -512,11 +512,13 @@ export default function SuperScanners() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
-        <div className="flex items-baseline gap-2">
-          <span className="text-accent-cyan text-base signal-glow-cyan">⊙</span>
-          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">
-            Super Scanners
-          </h1>
+        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-baseline sm:gap-2 min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="text-accent-cyan text-base signal-glow-cyan">⊙</span>
+            <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">
+              Super Scanners
+            </h1>
+          </div>
           <span className="text-xs text-text-dim mono">— {summary?.length ?? "—"} curated screens · click any column to sort</span>
         </div>
         <div className="font-mono text-2xs text-text-dim">

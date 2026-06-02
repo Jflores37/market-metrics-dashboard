@@ -33,7 +33,7 @@ function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }
   const tvUrl = `https://www.tradingview.com/chart/?symbol=${ticker}`;
   const backdropClass = "fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4";
   const cardClass = "bg-bg-card border border-border rounded-none sm:rounded-[2px] w-full max-w-5xl h-full sm:h-[80vh] flex flex-col overflow-hidden";
-  const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-bg-panel";
+  const headerClass = "flex items-center justify-between px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-border bg-bg-panel";
   const openLinkClass = "font-mono text-2xs text-accent-cyan hover:text-text-primary transition-colors uppercase tracking-widest";
   const closeBtnClass = "inline-flex items-center justify-center min-w-[40px] min-h-[40px] -mr-2 text-text-dim hover:text-text-primary text-xl leading-none";
   return (
