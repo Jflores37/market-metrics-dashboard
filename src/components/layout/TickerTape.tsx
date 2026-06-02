@@ -91,10 +91,10 @@ export default function TickerTape() {
   // (translateX -50% lands the second copy exactly where the first started).
   return (
     <div
-      className="group border-b border-border-subtle bg-bg-panel overflow-hidden cursor-pointer"
+      className="group border-b border-border-subtle bg-bg-panel overflow-hidden cursor-pointer marquee-mask"
       onClick={() => setPaused((p) => !p)}
     >
-      <div className={`flex items-center py-2 whitespace-nowrap animate-marquee w-max ${paused ? "[animation-play-state:paused]" : ""}`}>
+      <div className={`flex items-center py-2 pl-3 whitespace-nowrap animate-marquee w-max ${paused ? "[animation-play-state:paused]" : ""}`}>
         <TickerRow items={data} />
         <TickerRow items={data} />
       </div>

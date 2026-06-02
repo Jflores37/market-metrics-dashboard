@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
 import { finvizScreenerUrl } from "@/lib/finviz";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 interface KeyMetricRow {
   universe_id: string;
@@ -113,6 +114,7 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
 
 export default function KeyMetricsGrid() {
   const { data, isLoading } = useKeyMetrics();
+  const isMobile = useIsMobile();
 
   if (isLoading) {
     return (
@@ -155,11 +157,12 @@ export default function KeyMetricsGrid() {
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim">
-          % bullish · breakdown · status bar
+          {isMobile ? "swipe to see all 5 ›" : "% bullish · breakdown · status bar"}
         </span>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="relative">
+        <div className="overflow-x-auto">
         <table className="w-full font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="border-b border-border-subtle/60">
@@ -181,7 +184,7 @@ export default function KeyMetricsGrid() {
               {UNIVERSES.map((u) => (
                 <th
                   key={u}
-                  className="py-2 px-2 text-right text-2xs text-text-secondary uppercase tracking-wider font-semibold"
+                  className="py-2 px-2 min-w-[64px] text-right text-2xs text-text-secondary uppercase tracking-wider font-semibold"
                 >
                   {u}
                 </th>
@@ -204,6 +207,8 @@ export default function KeyMetricsGrid() {
             })}
           </tbody>
         </table>
+        </div>
+        <div className="sm:hidden pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-bg-card to-transparent" />
       </div>
     </div>
   );

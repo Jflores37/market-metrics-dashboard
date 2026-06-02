@@ -87,14 +87,14 @@ function PinnedSITBanner() {
         <div className={`font-mono text-3xl font-bold ${decisionColor}`}>{data.decision}</div>
         <div className="flex flex-col gap-0.5">
           <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">Market</span>
-          <span className="font-mono text-sm font-semibold">
+          <span className="font-mono text-base font-semibold">
             <span className={market.color}>{market.word}</span>{" "}
             <span className="text-text-dim text-2xs tabular-nums">{num(data.market_quality_score, 1)}</span>
           </span>
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="font-mono text-2xs text-text-dim uppercase tracking-widest">Timing</span>
-          <span className="font-mono text-sm font-semibold">
+          <span className="font-mono text-base font-semibold">
             <span className={timing.color}>{timing.word}</span>{" "}
             <span className="text-text-dim text-2xs tabular-nums">{num(data.execution_window_score, 1)}</span>
           </span>
@@ -107,7 +107,7 @@ function PinnedSITBanner() {
         </div>
       )}
       {data.narrative_text && (
-        <div className="text-xs sm:text-2xs text-text-dim leading-relaxed border-t border-border-subtle pt-3 font-mono">
+        <div className="sit-narrative text-xs sm:text-2xs text-text-dim leading-relaxed border-t border-border-subtle pt-3 font-mono">
           {data.narrative_text}
         </div>
       )}
@@ -631,10 +631,12 @@ export default function MarketMetrics() {
   return (
     <div className="space-y-4">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
-        <div className="flex items-baseline gap-2">
-          <span className="text-accent-cyan text-base signal-glow-cyan">⊞</span>
-          <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Market Metrics</h1>
-          <span className="text-xs text-text-dim mono">— Universe breadth · sectors · stages</span>
+        <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+          <div className="flex items-baseline gap-2">
+            <span className="text-accent-cyan text-base signal-glow-cyan">⊞</span>
+            <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Market Metrics</h1>
+          </div>
+          <span className="font-mono text-2xs text-text-dim uppercase tracking-widest sm:normal-case sm:tracking-normal sm:text-xs">Universe breadth · sectors · stages</span>
         </div>
       </header>
 

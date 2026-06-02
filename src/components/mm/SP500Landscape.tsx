@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ScatterChart, Scatter, XAxis, YAxis, ZAxis, ReferenceLine, Tooltip, ResponsiveContainer, LabelList,
+  ScatterChart, Scatter, XAxis, YAxis, ZAxis, CartesianGrid, ReferenceLine, Tooltip, ResponsiveContainer, LabelList,
 } from "recharts";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, usd, usdCompact, colorClass } from "@/lib/format";
-import { chartColors, axisTickStyle, axisStroke, referenceLineStroke, axisTick } from "@/lib/chartTheme";
+import { chartColors, axisTickStyle, axisStroke, referenceLineStroke, gridStroke, axisTick } from "@/lib/chartTheme";
 import { useIsMobile } from "@/lib/useIsMobile";
 
 interface LandscapeRow {
@@ -223,6 +223,7 @@ export default function SP500Landscape() {
       <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 28, left: 24 } : { top: 20, right: 20, bottom: 30, left: 30 }}>
+            <CartesianGrid stroke={gridStroke} strokeOpacity={0.15} strokeDasharray="2 2" />
             <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <ReferenceLine x={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <XAxis
@@ -251,7 +252,7 @@ export default function SP500Landscape() {
               stroke={axisStroke}
               label={{ value: yLabel, fontSize: 10, fill: chartColors.textDim, fontFamily: "JetBrains Mono, monospace", angle: -90, position: "insideLeft", offset: 10 }}
             />
-            <ZAxis type="number" dataKey="z" range={[20, 400]} />
+            <ZAxis type="number" dataKey="z" range={isAll ? [8, 220] : [20, 400]} />
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
 
             {shownSectors.map((s) => (
@@ -260,9 +261,10 @@ export default function SP500Landscape() {
                 name={s}
                 data={shown.filter((d) => d.sector === s)}
                 fill={SECTOR_COLOR[s] || chartColors.textSecondary}
-                fillOpacity={0.65}
+                fillOpacity={isAll ? 0.12 : 0.65}
                 stroke={SECTOR_COLOR[s] || chartColors.textSecondary}
-                strokeOpacity={0.85}
+                strokeOpacity={isAll ? 0.55 : 0.85}
+                strokeWidth={isAll ? 0.75 : 1}
                 isAnimationActive={false}
               >
                 {showLabels && (
