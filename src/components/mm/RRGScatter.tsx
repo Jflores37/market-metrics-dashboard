@@ -78,17 +78,37 @@ function makeRRGDot(isMobile: boolean, color: string) {
   return function RRGDot(props: any) {
     const { cx, cy, payload } = props;
     if (payload?.isCurrent) {
+      // Fan each label OUTWARD from the 100/100 crosshair (by the sign of its
+      // ratio/momentum) so the central cluster's labels stop overlapping.
+      const off = isMobile ? 7 : 10;
+      const right = payload.rs_ratio >= 100;
+      const top = payload.rs_momentum >= 100;
       return (
         <g key={`c-${payload.ticker}`}>
           <circle cx={cx} cy={cy} r={14} fill="transparent" />
-          <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
-          <text x={cx + (isMobile ? 7 : 10)} y={cy + 4} fontSize={isMobile ? 8 : 10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
+          <circle cx={cx} cy={cy} r={6} fill={color} stroke={chartColors.bg} strokeWidth={2} />
+          <text
+            x={cx + (right ? off : -off)}
+            y={cy + (top ? -off : off) + 3}
+            textAnchor={right ? "start" : "end"}
+            fontSize={isMobile ? 8 : 10}
+            fontFamily="JetBrains Mono, monospace"
+            fill={chartColors.textPrimary}
+            fontWeight={600}
+          >
             {payload.ticker}
           </text>
         </g>
       );
     }
-    return <circle key={`t-${payload?.ticker}-${payload?.op}`} cx={cx} cy={cy} r={2.5} fill={color} opacity={payload?.op ?? 0.3} />;
+    // The trail now reads as the connecting comet line alone; the per-point
+    // "shadow dots" were pure noise. Keep only a faint hollow ring at the
+    // oldest point so the path has a visible start. Every point still anchors
+    // the line geometry and its tooltip — no data lost.
+    if (payload?.isStart) {
+      return <circle key={`s-${payload.ticker}`} cx={cx} cy={cy} r={2} fill="none" stroke={color} strokeOpacity={0.5} />;
+    }
+    return <g key={`t-${payload?.ticker}-${payload?.op}`} />;
   };
 }
 
@@ -133,13 +153,13 @@ export default function RRGScatter() {
       return {
         ticker: cur.ticker, sector_label: cur.sector_label,
         rs_ratio: r, rs_momentum: m, quadrant: quadrantOf(r, m),
-        isCurrent: false, op: 0.18 + 0.32 * (n > 1 ? i / (n - 1) : 1),
+        isCurrent: false, isStart: i === 0, op: 0.18 + 0.32 * (n > 1 ? i / (n - 1) : 1),
       };
     });
     points.push({
       ticker: cur.ticker, sector_label: cur.sector_label,
       rs_ratio: Number(cur.rs_ratio), rs_momentum: Number(cur.rs_momentum),
-      quadrant: cur.quadrant, isCurrent: true, op: 1,
+      quadrant: cur.quadrant, isCurrent: true, isStart: false, op: 1,
     });
     return { ticker: cur.ticker, color, points };
   });
@@ -147,13 +167,13 @@ export default function RRGScatter() {
   // Symmetric domain centered on 100 (RRG is conventionally a square around the
   // 100/100 crosshair), auto-fit to cover every shown point + padding. Immune
   // to non-finite data and keeps 100 dead-center each day.
-  let dev = 8;
+  let dev = 4;
   for (const s of sectorTails) {
     for (const p of s.points) {
       dev = Math.max(dev, Math.abs(p.rs_ratio - 100), Math.abs(p.rs_momentum - 100));
     }
   }
-  const half = Math.ceil(dev * 1.1);
+  const half = Math.max(5, Math.ceil(dev * 1.08));
   const lo = 100 - half;
   const hi = 100 + half;
   const desktopTicks: number[] = [];
@@ -224,7 +244,7 @@ export default function RRGScatter() {
               <Scatter
                 key={s.ticker}
                 data={s.points}
-                line={{ stroke: s.color, strokeWidth: 1.2, strokeOpacity: 0.35 }}
+                line={{ stroke: s.color, strokeWidth: 1.5, strokeOpacity: 0.5 }}
                 shape={makeRRGDot(isMobile, s.color)}
                 isAnimationActive={false}
               />

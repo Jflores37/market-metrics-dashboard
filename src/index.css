@@ -158,6 +158,19 @@
       animation-duration: 90s;
     }
   }
+
+  /* Marquee edges dissolve into the panel instead of guillotining the type
+     mid-character at the viewport edge. Wider inset where there's room. */
+  .marquee-mask {
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+  }
+  @media (min-width: 640px) {
+    .marquee-mask {
+      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%);
+    }
+  }
 }
 
 /* ---- Mobile data tables (phone only, < sm) -------------------------------
@@ -172,8 +185,12 @@
     left: 0;
     z-index: 1;
     background-color: hsl(220 20% 6%);
+    box-shadow: 6px 0 6px -4px hsl(220 20% 2% / 0.6);
   }
   .tbl-readable td {
     font-size: 0.75rem;
+  }
+  .sit-narrative {
+    color: hsl(220 10% 48%);
   }
 }
