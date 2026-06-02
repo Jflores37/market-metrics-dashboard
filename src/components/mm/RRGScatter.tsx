@@ -93,8 +93,10 @@ function renderTrailDot(props: any) {
 // RRG indices are centered at 100. A fixed domain is immune to non-finite
 // data (the cause of the "34599999999999" tick garbage) and keeps the
 // x=100 / y=100 quadrant guides stable frame-to-frame.
-const RRG_DOMAIN: [number, number] = [90, 115];
-const RRG_TICKS = [90, 95, 100, 105, 110, 115];
+// Upper bound 120 (not 115) so the most-extreme sector — momentum runs to
+// ~115.3 in the live data — is never clipped/pinned to the top edge.
+const RRG_DOMAIN: [number, number] = [90, 120];
+const RRG_TICKS = [90, 95, 100, 105, 110, 115, 120];
 const RRG_TICKS_MOBILE = [90, 100, 110];
 
 const isFiniteRow = (d: { rs_ratio: number; rs_momentum: number }) =>

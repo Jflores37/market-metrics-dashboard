@@ -24,15 +24,16 @@ export default function Sidebar({ onCollapse }: { onCollapse: () => void }) {
         </button>
       </div>
 
-      {/* Desktop: stacked card-buttons. Mobile: horizontal scroll pills. */}
-      <nav className="p-3 flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible">
+      {/* Desktop: stacked card-buttons. Mobile: wrapping pill row (all tabs
+          visible at 375px, no hidden horizontal scroll). */}
+      <nav className="p-3 flex flex-wrap md:flex-col gap-2">
         {TABS.map((tab) => (
           <NavLink
             key={tab.key}
             to={tab.path}
             end={tab.path === "/"}
             className={({ isActive }) =>
-              `block px-2.5 py-2 rounded-[4px] border text-2xs font-mono font-semibold tracking-tight transition-colors whitespace-nowrap text-center md:text-left ${
+              `block px-2.5 py-2.5 md:py-2 rounded-[4px] border text-2xs font-mono font-semibold tracking-tight transition-colors whitespace-nowrap text-center md:text-left ${
                 isActive
                   ? "bg-accent-cyan/[0.12] border-accent-cyan text-accent-cyan shadow-[inset_0_0_0_1px_hsl(185_70%_55%/0.2)]"
                   : "bg-bg-card border-border-subtle text-text-secondary hover:text-text-primary hover:border-accent-cyan hover:bg-bg-hover"

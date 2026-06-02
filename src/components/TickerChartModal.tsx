@@ -35,7 +35,7 @@ function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }
   const cardClass = "bg-bg-card border border-border rounded-[2px] w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden";
   const headerClass = "flex items-center justify-between px-4 py-2 border-b border-border bg-bg-panel";
   const openLinkClass = "font-mono text-2xs text-accent-cyan hover:text-text-primary transition-colors uppercase tracking-widest";
-  const closeBtnClass = "text-text-dim hover:text-text-primary text-lg leading-none";
+  const closeBtnClass = "text-text-dim hover:text-text-primary text-lg leading-none p-2 -mr-2";
   return (
     <div className={backdropClass} onClick={onClose}>
       <div className={cardClass} onClick={(e) => e.stopPropagation()}>
