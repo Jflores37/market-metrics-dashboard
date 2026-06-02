@@ -107,7 +107,7 @@ function PinnedSITBanner() {
         </div>
       )}
       {data.narrative_text && (
-        <div className="text-2xs text-text-dim leading-relaxed border-t border-border-subtle pt-3 font-mono">
+        <div className="text-xs sm:text-2xs text-text-dim leading-relaxed border-t border-border-subtle pt-3 font-mono">
           {data.narrative_text}
         </div>
       )}
@@ -151,7 +151,7 @@ function SectorGrid() {
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[640px]">
+        <table className="w-full text-xs font-mono min-w-[640px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Ticker</th>
@@ -248,7 +248,7 @@ function WatchlistTable() {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[760px]">
+        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Ticker</th>

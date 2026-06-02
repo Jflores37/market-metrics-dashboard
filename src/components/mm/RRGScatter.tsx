@@ -80,12 +80,11 @@ function makeRRGDot(isMobile: boolean, color: string) {
     if (payload?.isCurrent) {
       return (
         <g key={`c-${payload.ticker}`}>
+          <circle cx={cx} cy={cy} r={14} fill="transparent" />
           <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
-          {!isMobile && (
-            <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
-              {payload.ticker}
-            </text>
-          )}
+          <text x={cx + (isMobile ? 7 : 10)} y={cy + 4} fontSize={isMobile ? 8 : 10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
+            {payload.ticker}
+          </text>
         </g>
       );
     }
@@ -189,7 +188,7 @@ export default function RRGScatter() {
 
       <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 24, left: 8 } : { top: 20, right: 30, bottom: 30, left: 30 }}>
+          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 24, left: 22 } : { top: 20, right: 30, bottom: 30, left: 30 }}>
             <ReferenceArea x1={100} x2={hi} y1={100} y2={hi} fill={QUADRANT_COLOR.leading} fillOpacity={0.06} />
             <ReferenceArea x1={100} x2={hi} y1={lo} y2={100} fill={QUADRANT_COLOR.weakening} fillOpacity={0.06} />
             <ReferenceArea x1={lo} x2={100} y1={lo} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />

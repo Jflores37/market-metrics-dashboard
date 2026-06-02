@@ -60,7 +60,7 @@ type XKey = (typeof X_OPTIONS)[number]["key"];
 type YKey = (typeof Y_OPTIONS)[number]["key"];
 
 const SELECT_CLASS =
-  "bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-1 sm:py-0.5 font-mono text-xs sm:text-2xs min-h-[32px] flex-1 sm:flex-none min-w-0";
+  "bg-bg-card border border-border-subtle text-text-primary rounded px-2 py-1 sm:py-0.5 font-mono text-xs sm:text-2xs min-h-[40px] sm:min-h-[32px] flex-1 sm:flex-none min-w-0";
 
 function quantile(sorted: number[], q: number): number {
   const i = (sorted.length - 1) * q;
@@ -168,6 +168,11 @@ export default function SP500Landscape() {
   const xLabel = X_OPTIONS.find((o) => o.key === xKey)?.label ?? xKey;
   const yLabel = Y_OPTIONS.find((o) => o.key === yKey)?.label ?? yKey;
 
+  // Per-stock ticker labels when a single sector is selected. Always on desktop;
+  // on mobile only when the set is small enough that 7px labels stay legible
+  // rather than collapsing into overlapping mush (tap still shows the tooltip).
+  const showLabels = !isAll && (!isMobile || shown.length <= 30);
+
   return (
     <div className="terminal-card p-4">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
@@ -217,7 +222,7 @@ export default function SP500Landscape() {
 
       <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 28, left: 8 } : { top: 20, right: 20, bottom: 30, left: 30 }}>
+          <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 28, left: 24 } : { top: 20, right: 20, bottom: 30, left: 30 }}>
             <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <ReferenceLine x={0} stroke={referenceLineStroke} strokeWidth={1} strokeDasharray="2 2" />
             <XAxis
@@ -260,13 +265,13 @@ export default function SP500Landscape() {
                 strokeOpacity={0.85}
                 isAnimationActive={false}
               >
-                {!isAll && !isMobile && (
+                {showLabels && (
                   <LabelList
                     dataKey="ticker"
                     position="top"
                     offset={5}
                     fill={chartColors.textSecondary}
-                    fontSize={8}
+                    fontSize={isMobile ? 7 : 8}
                     fontFamily="JetBrains Mono, monospace"
                   />
                 )}

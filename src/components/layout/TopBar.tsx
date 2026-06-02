@@ -42,6 +42,9 @@ export default function TopBar() {
       <span className="text-accent-cyan font-mono font-bold tracking-tight text-base md:hidden signal-glow-cyan">
         Pulse
       </span>
+      <span className="sm:hidden flex-1 text-center font-mono text-2xs text-accent-green tabular-nums uppercase tracking-wider signal-glow-green">
+        {time}
+      </span>
       <div className="font-mono text-xs text-accent-green flex-1 text-center hidden sm:block tabular-nums uppercase tracking-wider signal-glow-green">
         {date} · {time}
       </div>
@@ -49,7 +52,7 @@ export default function TopBar() {
         <button
           onClick={handleRefresh}
           aria-label="Refresh data"
-          className="flex items-center gap-1.5 px-2 py-1 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
+          className="flex items-center justify-center gap-1.5 px-2.5 py-2 min-h-[40px] sm:min-h-0 sm:py-1 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
         >
           <span className={refreshing ? "animate-spin inline-block" : "inline-block"}>↻</span>
           <span className="hidden sm:inline">Refresh</span>
