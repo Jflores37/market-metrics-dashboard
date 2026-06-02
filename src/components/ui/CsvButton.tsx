@@ -23,7 +23,7 @@ export default function CsvButton<T>({
       disabled={disabled || empty}
       onClick={() => downloadCsv(filename, rows, columns)}
       aria-label={`Download ${filename}`}
-      className="flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-secondary disabled:hover:bg-transparent"
+      className="flex items-center justify-center gap-1 px-2 py-1.5 sm:px-1.5 sm:py-0.5 min-h-[36px] sm:min-h-0 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-text-secondary disabled:hover:bg-transparent"
     >
       <span aria-hidden="true">↓</span>
       <span className="hidden sm:inline">CSV</span>

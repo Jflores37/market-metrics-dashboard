@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num } from "@/lib/format";
@@ -115,6 +116,9 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
 export default function KeyMetricsGrid() {
   const { data, isLoading } = useKeyMetrics();
   const isMobile = useIsMobile();
+  // The right-edge fade is a "more columns →" cue. Hide it once scrolled to the
+  // end so it never sits on top of the last universe's values (lose nothing).
+  const [atEnd, setAtEnd] = useState(false);
 
   if (isLoading) {
     return (
@@ -162,7 +166,13 @@ export default function KeyMetricsGrid() {
       </div>
 
       <div className="relative">
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+          }}
+        >
         <table className="w-full font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="border-b border-border-subtle/60">
@@ -208,7 +218,7 @@ export default function KeyMetricsGrid() {
           </tbody>
         </table>
         </div>
-        <div className="sm:hidden pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-bg-card to-transparent" />
+        <div className={`sm:hidden pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-bg-card to-transparent transition-opacity duration-200 ${atEnd ? "opacity-0" : "opacity-100"}`} />
       </div>
     </div>
   );
