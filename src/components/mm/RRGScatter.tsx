@@ -68,36 +68,32 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-function makeCurrentDot(isMobile: boolean) {
-  return function CurrentDot(props: any) {
+function quadrantOf(r: number, m: number): Quadrant {
+  return r >= 100 ? (m >= 100 ? "leading" : "weakening") : m >= 100 ? "improving" : "lagging";
+}
+
+// One point shape: the live position is a big quadrant-colored dot (+ ticker
+// label on desktop); each historical tail position is a small fading dot.
+function makeRRGDot(isMobile: boolean, color: string) {
+  return function RRGDot(props: any) {
     const { cx, cy, payload } = props;
-    const color = QUADRANT_COLOR[payload.quadrant as Quadrant] || chartColors.textSecondary;
-    return (
-      <g key={`g-${payload.ticker}`}>
-        <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
-        {!isMobile && (
-          <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
-            {payload.ticker}
-          </text>
-        )}
-      </g>
-    );
+    if (payload?.isCurrent) {
+      return (
+        <g key={`c-${payload.ticker}`}>
+          <circle cx={cx} cy={cy} r={7} fill={color} stroke={chartColors.bg} strokeWidth={1.5} />
+          {!isMobile && (
+            <text x={cx + 10} y={cy + 4} fontSize={10} fontFamily="JetBrains Mono, monospace" fill={chartColors.textPrimary} fontWeight={600}>
+              {payload.ticker}
+            </text>
+          )}
+        </g>
+      );
+    }
+    return <circle key={`t-${payload?.ticker}-${payload?.op}`} cx={cx} cy={cy} r={2.5} fill={color} opacity={payload?.op ?? 0.3} />;
   };
 }
 
-function renderTrailDot(props: any) {
-  const { cx, cy } = props;
-  return <circle cx={cx} cy={cy} r={2} fill={chartColors.textDim} opacity={0.35} />;
-}
-
-// RRG indices are centered at 100. A fixed domain is immune to non-finite
-// data (the cause of the "34599999999999" tick garbage) and keeps the
-// x=100 / y=100 quadrant guides stable frame-to-frame.
-// Upper bound 120 (not 115) so the most-extreme sector — momentum runs to
-// ~115.3 in the live data — is never clipped/pinned to the top edge.
-const RRG_DOMAIN: [number, number] = [90, 120];
-const RRG_TICKS = [90, 95, 100, 105, 110, 115, 120];
-const RRG_TICKS_MOBILE = [90, 100, 110];
+const TAIL_LEN = 5;
 
 const isFiniteRow = (d: { rs_ratio: number; rs_momentum: number }) =>
   Number.isFinite(Number(d.rs_ratio)) && Number.isFinite(Number(d.rs_momentum));
@@ -117,7 +113,55 @@ export default function RRGScatter() {
 
   const currentPts = data.current.filter(isFiniteRow);
   const trailPts = data.trails.filter(isFiniteRow);
-  const ticks = isMobile ? RRG_TICKS_MOBILE : RRG_TICKS;
+
+  // group trail rows by ticker (query already orders by snapshot_date asc)
+  const trailByTicker = new Map<string, TrailRow[]>();
+  for (const t of trailPts) {
+    const arr = trailByTicker.get(t.ticker);
+    if (arr) arr.push(t);
+    else trailByTicker.set(t.ticker, [t]);
+  }
+
+  // one short tail series per sector: last TAIL_LEN history points + the live
+  // point, oldest -> newest so the connecting line ends at the live dot.
+  const sectorTails = currentPts.map((cur) => {
+    const color = QUADRANT_COLOR[cur.quadrant] || chartColors.textSecondary;
+    const hist = (trailByTicker.get(cur.ticker) ?? []).slice(-TAIL_LEN);
+    const n = hist.length;
+    const points = hist.map((t, i) => {
+      const r = Number(t.rs_ratio);
+      const m = Number(t.rs_momentum);
+      return {
+        ticker: cur.ticker, sector_label: cur.sector_label,
+        rs_ratio: r, rs_momentum: m, quadrant: quadrantOf(r, m),
+        isCurrent: false, op: 0.18 + 0.32 * (n > 1 ? i / (n - 1) : 1),
+      };
+    });
+    points.push({
+      ticker: cur.ticker, sector_label: cur.sector_label,
+      rs_ratio: Number(cur.rs_ratio), rs_momentum: Number(cur.rs_momentum),
+      quadrant: cur.quadrant, isCurrent: true, op: 1,
+    });
+    return { ticker: cur.ticker, color, points };
+  });
+
+  // Symmetric domain centered on 100 (RRG is conventionally a square around the
+  // 100/100 crosshair), auto-fit to cover every shown point + padding. Immune
+  // to non-finite data and keeps 100 dead-center each day.
+  let dev = 8;
+  for (const s of sectorTails) {
+    for (const p of s.points) {
+      dev = Math.max(dev, Math.abs(p.rs_ratio - 100), Math.abs(p.rs_momentum - 100));
+    }
+  }
+  const half = Math.ceil(dev * 1.1);
+  const lo = 100 - half;
+  const hi = 100 + half;
+  const desktopTicks: number[] = [];
+  for (let t = Math.ceil(lo / 5) * 5; t <= hi; t += 5) desktopTicks.push(t);
+  const mobileTicks: number[] = [];
+  for (let t = Math.ceil(lo / 10) * 10; t <= hi; t += 10) mobileTicks.push(t);
+  const ticks = isMobile ? mobileTicks : desktopTicks;
   const tickStyle = isMobile ? { ...axisTickStyle, fontSize: 9 } : axisTickStyle;
 
   return (
@@ -146,10 +190,10 @@ export default function RRGScatter() {
       <div className="h-72 sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={isMobile ? { top: 12, right: 12, bottom: 24, left: 8 } : { top: 20, right: 30, bottom: 30, left: 30 }}>
-            <ReferenceArea x1={100} x2={RRG_DOMAIN[1]} y1={100} y2={RRG_DOMAIN[1]} fill={QUADRANT_COLOR.leading} fillOpacity={0.06} />
-            <ReferenceArea x1={100} x2={RRG_DOMAIN[1]} y1={RRG_DOMAIN[0]} y2={100} fill={QUADRANT_COLOR.weakening} fillOpacity={0.06} />
-            <ReferenceArea x1={RRG_DOMAIN[0]} x2={100} y1={RRG_DOMAIN[0]} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />
-            <ReferenceArea x1={RRG_DOMAIN[0]} x2={100} y1={100} y2={RRG_DOMAIN[1]} fill={QUADRANT_COLOR.improving} fillOpacity={0.06} />
+            <ReferenceArea x1={100} x2={hi} y1={100} y2={hi} fill={QUADRANT_COLOR.leading} fillOpacity={0.06} />
+            <ReferenceArea x1={100} x2={hi} y1={lo} y2={100} fill={QUADRANT_COLOR.weakening} fillOpacity={0.06} />
+            <ReferenceArea x1={lo} x2={100} y1={lo} y2={100} fill={QUADRANT_COLOR.lagging} fillOpacity={0.06} />
+            <ReferenceArea x1={lo} x2={100} y1={100} y2={hi} fill={QUADRANT_COLOR.improving} fillOpacity={0.06} />
 
             <ReferenceLine x={100} stroke={referenceLineStroke} strokeWidth={1} />
             <ReferenceLine y={100} stroke={referenceLineStroke} strokeWidth={1} />
@@ -157,7 +201,7 @@ export default function RRGScatter() {
             <XAxis
               type="number"
               dataKey="rs_ratio"
-              domain={RRG_DOMAIN}
+              domain={[lo, hi]}
               ticks={ticks}
               allowDecimals={false}
               allowDataOverflow
@@ -168,7 +212,7 @@ export default function RRGScatter() {
             <YAxis
               type="number"
               dataKey="rs_momentum"
-              domain={RRG_DOMAIN}
+              domain={[lo, hi]}
               ticks={ticks}
               allowDecimals={false}
               allowDataOverflow
@@ -177,8 +221,15 @@ export default function RRGScatter() {
               stroke={axisStroke}
             />
 
-            <Scatter name="trail" data={trailPts} shape={renderTrailDot} />
-            <Scatter name="current" data={currentPts} shape={makeCurrentDot(isMobile)} />
+            {sectorTails.map((s) => (
+              <Scatter
+                key={s.ticker}
+                data={s.points}
+                line={{ stroke: s.color, strokeWidth: 1.2, strokeOpacity: 0.35 }}
+                shape={makeRRGDot(isMobile, s.color)}
+                isAnimationActive={false}
+              />
+            ))}
 
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: "3 3" }} />
           </ScatterChart>
