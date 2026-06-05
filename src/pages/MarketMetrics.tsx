@@ -76,7 +76,7 @@ function PinnedSITBanner() {
   const timing = scoreVerdict(data.execution_window_score, "timing");
 
   return (
-    <div className="terminal-card p-5 space-y-3">
+    <div className="terminal-card p-4 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
           Should I Trade · swing mode
@@ -344,7 +344,7 @@ function StageAnalysisCard() {
           const c = stageColor(row.stage);
           const widthPct = (row.pct / maxPct) * 100;
           return (
-            <div key={row.stage} className="grid grid-cols-[2rem_1fr_6rem_3rem] sm:grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
+            <div key={row.stage} className="grid grid-cols-[1.75rem_4.5rem_1fr_3rem] sm:grid-cols-[2rem_6rem_1fr_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
               <div className={`font-semibold ${c.text}`}>{row.stage}</div>
               <div className="h-4 bg-bg-panel rounded-sm overflow-hidden">
                 <div className={`h-full ${c.bar} transition-all`} style={{ width: `${widthPct}%` }} />
@@ -489,7 +489,7 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
     last >= 0 ? "text-accent-green" : "text-accent-red";
 
   return (
-    <div className="terminal-card p-3">
+    <div className="terminal-card p-4">
       <div className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold mb-1">{title}</div>
       <div className={`font-mono text-base tabular-nums font-semibold ${displayColor}`}>{displayValue}</div>
       <div className="h-16 sm:h-12 mt-1">
@@ -583,7 +583,7 @@ function StockbeeHistoryCharts() {
         <span className="text-accent-cyan signal-glow-cyan">▦</span>
         Stockbee · 60-day history
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <MiniChartCard title="4% Up − Down" history={data} type="fourpct_net" />
         <MiniChartCard title="5d A/D Ratio" history={data} type="ratio5" refLine={1} />
         <MiniChartCard title="25% Qtr Up − Down" history={data} type="qtr_net" />

@@ -290,7 +290,7 @@ function TopMoverTable({
         <span className="font-mono text-2xs text-text-dim">{rows.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[400px] tbl-readable mm-aligned">
+        <table className="w-full text-xs font-mono min-w-[320px] tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 w-7">#</th>
