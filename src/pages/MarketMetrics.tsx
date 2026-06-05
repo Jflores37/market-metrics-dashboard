@@ -151,7 +151,7 @@ function SectorGrid() {
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[640px] sticky-col-1 tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[640px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Ticker</th>
@@ -172,14 +172,14 @@ function SectorGrid() {
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
                   {row.is_benchmark && <span className="text-2xs text-accent-amber ml-1">·</span>}
                 </td>
-                <td data-label="Name" className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
-                <td data-label="Price" className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
-                <td data-label="Day" className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
-                <td data-label="Wk" className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
-                <td data-label="Mo" className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
-                <td data-label="Qtr" className={`py-1 tabular-nums text-right ${colorClass(row.perf_quarter)}`}>{pct(row.perf_quarter, 1)}</td>
-                <td data-label="Yr" className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
-                <td data-label="YTD" className={`py-1 tabular-nums text-right pr-1 ${colorClass(row.perf_ytd)}`}>{pct(row.perf_ytd, 1)}</td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
+                <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_quarter)}`}>{pct(row.perf_quarter, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
+                <td className={`py-1 tabular-nums text-right pr-1 ${colorClass(row.perf_ytd)}`}>{pct(row.perf_ytd, 1)}</td>
               </tr>
             ))}
           </tbody>
@@ -248,7 +248,7 @@ function WatchlistTable() {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Ticker</th>
@@ -268,16 +268,16 @@ function WatchlistTable() {
             {data.map((row) => (
               <tr key={row.ticker} className="border-b border-border-subtle/40 hover:bg-bg-hover">
                 <td className="py-1 pl-1"><TickerLink ticker={row.ticker} /></td>
-                <td data-label="Sector" className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">{row.sector || "—"}</td>
-                <td data-label="Cap" className="py-1 text-text-secondary tabular-nums text-right text-2xs">{usdCompact(row.market_cap_millions, "millions")}</td>
-                <td data-label="Price" className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
-                <td data-label="Day" className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
-                <td data-label="Wk" className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
-                <td data-label="Mo" className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
-                <td data-label="Yr" className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
-                <td data-label="vs SMA50" className={`py-1 tabular-nums text-right text-2xs ${colorClass(row.sma50_pct)}`}>{pct(row.sma50_pct, 1)}</td>
-                <td data-label="RSI" className="py-1 text-text-secondary tabular-nums text-right text-2xs">{num(row.rsi14, 0)}</td>
-                <td data-label="ATR%" className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">{num(row.atr_pct, 1)}</td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">{row.sector || "—"}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{usdCompact(row.market_cap_millions, "millions")}</td>
+                <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_month)}`}>{pct(row.perf_month, 1)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_year)}`}>{pct(row.perf_year, 1)}</td>
+                <td className={`py-1 tabular-nums text-right text-2xs ${colorClass(row.sma50_pct)}`}>{pct(row.sma50_pct, 1)}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{num(row.rsi14, 0)}</td>
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">{num(row.atr_pct, 1)}</td>
               </tr>
             ))}
           </tbody>

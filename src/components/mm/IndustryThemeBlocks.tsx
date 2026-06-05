@@ -88,7 +88,7 @@ export function LeadingIndustriesTable() {
         <span className="font-mono text-2xs text-text-dim">top {data.length} · ★ = top both wk &amp; mo</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Industry</th>
@@ -109,19 +109,19 @@ export function LeadingIndustriesTable() {
                   {r.industry}
                   {r.top_both && <span className="text-2xs text-accent-green ml-1">★</span>}
                 </td>
-                <td data-label="Sector" className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
                   {r.sector}
                 </td>
-                <td data-label="Wk Avg" className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
                   {pct(r.week_avg, 2)}
                 </td>
-                <td data-label="Mo Avg" className={`py-1 tabular-nums text-right ${colorClass(r.month_avg)}`}>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.month_avg)}`}>
                   {pct(r.month_avg, 2)}
                 </td>
-                <td data-label="Stocks" className="py-1 text-text-dim tabular-nums text-right text-2xs">
+                <td className="py-1 text-text-dim tabular-nums text-right text-2xs">
                   {r.stock_count}
                 </td>
-                <td data-label="Top" className="py-1 pr-1 text-text-secondary text-2xs">
+                <td className="py-1 pr-1 text-text-secondary text-2xs">
                   {[r.t1, r.t2, r.t3, r.t4].filter(Boolean).join(", ")}
                 </td>
               </tr>
@@ -162,7 +162,7 @@ export function ThematicsByThemeTable() {
         <span className="font-mono text-2xs text-text-dim">top {data.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Theme</th>
@@ -183,19 +183,19 @@ export function ThematicsByThemeTable() {
                   {r.theme}
                   {r.top_both && <span className="text-2xs text-accent-green ml-1">★</span>}
                 </td>
-                <td data-label="Sector" className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
                   {r.sector}
                 </td>
-                <td data-label="Wk Avg" className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
                   {pct(r.week_avg, 2)}
                 </td>
-                <td data-label="Mo Avg" className={`py-1 tabular-nums text-right ${colorClass(r.month_avg)}`}>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.month_avg)}`}>
                   {pct(r.month_avg, 2)}
                 </td>
-                <td data-label="Stocks" className="py-1 text-text-dim tabular-nums text-right text-2xs">
+                <td className="py-1 text-text-dim tabular-nums text-right text-2xs">
                   {r.stock_count}
                 </td>
-                <td data-label="Top" className="py-1 pr-1 text-text-secondary text-2xs">
+                <td className="py-1 pr-1 text-text-secondary text-2xs">
                   {[r.t1, r.t2, r.t3, r.t4].filter(Boolean).join(", ")}
                 </td>
               </tr>
@@ -235,7 +235,7 @@ export function ThematicsBySectorTable() {
         <span className="font-mono text-2xs text-text-dim">{data.length} sectors</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Sector</th>
@@ -252,13 +252,13 @@ export function ThematicsBySectorTable() {
             {data.map((r) => (
               <tr key={r.sector} className="border-b border-border-subtle/40 hover:bg-bg-hover">
                 <td className="py-1 pl-1 text-text-primary font-semibold">{r.sector}</td>
-                <td data-label="Day" className={`py-1 tabular-nums text-right ${colorClass(r.perf_day)}`}>{pct(r.perf_day, 2)}</td>
-                <td data-label="Wk" className={`py-1 tabular-nums text-right ${colorClass(r.perf_week)}`}>{pct(r.perf_week, 2)}</td>
-                <td data-label="Mo" className={`py-1 tabular-nums text-right ${colorClass(r.perf_month)}`}>{pct(r.perf_month, 2)}</td>
-                <td data-label="Qtr" className={`py-1 tabular-nums text-right ${colorClass(r.perf_quarter)}`}>{pct(r.perf_quarter, 2)}</td>
-                <td data-label="Yr" className={`py-1 tabular-nums text-right ${colorClass(r.perf_year)}`}>{pct(r.perf_year, 2)}</td>
-                <td data-label="YTD" className={`py-1 tabular-nums text-right ${colorClass(r.perf_ytd)}`}>{pct(r.perf_ytd, 2)}</td>
-                <td data-label="Stocks" className="py-1 text-text-dim tabular-nums text-right text-2xs pr-1">{r.stock_count}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_day)}`}>{pct(r.perf_day, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_week)}`}>{pct(r.perf_week, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_month)}`}>{pct(r.perf_month, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_quarter)}`}>{pct(r.perf_quarter, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_year)}`}>{pct(r.perf_year, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_ytd)}`}>{pct(r.perf_ytd, 2)}</td>
+                <td className="py-1 text-text-dim tabular-nums text-right text-2xs pr-1">{r.stock_count}</td>
               </tr>
             ))}
           </tbody>
@@ -290,7 +290,7 @@ function TopMoverTable({
         <span className="font-mono text-2xs text-text-dim">{rows.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[440px] tbl-readable reflow">
+        <table className="w-full text-xs font-mono min-w-[440px] tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 w-7">#</th>
@@ -307,16 +307,16 @@ function TopMoverTable({
                 key={`${r.mover_side}-${r.ticker}`}
                 className="border-b border-border-subtle/40 hover:bg-bg-hover"
               >
-                <td data-label="" className="py-1 pl-1 text-text-dim tabular-nums">#{r.rank}</td>
-                <td data-label="Ticker" className="py-1 text-text-primary font-semibold">{r.ticker}</td>
-                <td data-label="Industry" className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">
+                <td className="py-1 pl-1 text-text-dim tabular-nums">{r.rank}</td>
+                <td className="py-1 text-text-primary font-semibold">{r.ticker}</td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">
                   {r.industry || "—"}
                 </td>
-                <td data-label="Price" className="py-1 text-text-primary tabular-nums text-right">{usd(r.price, 2)}</td>
-                <td data-label="Day" className={`py-1 tabular-nums text-right ${colorClass(r.perf_day)}`}>
+                <td className="py-1 text-text-primary tabular-nums text-right">{usd(r.price, 2)}</td>
+                <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_day)}`}>
                   {pct(r.perf_day, 1)}
                 </td>
-                <td data-label="RSI" className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">
+                <td className="py-1 text-text-secondary tabular-nums text-right text-2xs pr-1">
                   {num(r.rsi14, 0)}
                 </td>
               </tr>

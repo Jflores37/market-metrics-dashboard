@@ -193,45 +193,4 @@
   .sit-narrative {
     color: hsl(220 10% 48%);
   }
-
-  /* ---- Mobile card reflow (opt-in via .reflow; phone only). Dense Market
-     Metrics tables that can't fit a phone become one card per row instead of a
-     sideways scroll: thead hidden, each row a terminal card, each cell a
-     LABEL <-> value line. Reverts to the exact table at >= 640px. ---- */
-  table.reflow { min-width: 0 !important; width: 100%; display: block; }
-  table.reflow thead { display: none; }
-  table.reflow tbody { display: block; }
-  table.reflow.sticky-col-1 th:first-child,
-  table.reflow.sticky-col-1 td:first-child {
-    position: static; box-shadow: none; background-color: transparent;
-  }
-  table.reflow tbody tr {
-    display: block; margin-bottom: 0.5rem; padding: 0.5rem 0.625rem;
-    border: 2px solid hsl(220 15% 14%); border-radius: 2px;
-    background: linear-gradient(180deg, hsl(220 20% 5%) 0%, hsl(220 20% 4%) 100%);
-    box-shadow: inset 0 1px 0 hsl(142 70% 55% / 0.12);
-  }
-  table.reflow tbody tr:last-child { margin-bottom: 0; }
-  table.reflow tbody td {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 0.75rem; padding: 0.1875rem 0; border: 0;
-    text-align: right; font-size: 0.75rem; white-space: normal;
-  }
-  table.reflow tbody td::before {
-    content: attr(data-label);
-    color: hsl(220 10% 40%); text-transform: uppercase; letter-spacing: 0.05em;
-    font-size: 0.625rem; text-align: left; flex: 0 0 auto; white-space: nowrap;
-  }
-  table.reflow tbody td[data-label=""]::before { content: none; }
-  table.reflow tbody td:first-child {
-    justify-content: flex-start; text-align: left;
-    font-size: 0.8125rem; font-weight: 600;
-    padding-bottom: 0.375rem; margin-bottom: 0.25rem;
-    border-bottom: 1px solid hsl(220 15% 12%);
-  }
-  table.reflow tbody td:first-child::before { content: none; }
-  table.reflow tbody td.truncate,
-  table.reflow tbody td .truncate {
-    max-width: none !important; overflow: visible; white-space: normal; text-overflow: clip;
-  }
 }

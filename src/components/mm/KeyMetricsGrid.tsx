@@ -161,49 +161,10 @@ export default function KeyMetricsGrid() {
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim">
-          % bullish · breakdown · bar
+          {isMobile ? "swipe to see all 5 ›" : "% bullish · breakdown · status bar"}
         </span>
       </div>
 
-      {isMobile ? (
-        <div className="space-y-2">
-          {metrics.map((m) => {
-            const isStocks = m.id === "stocks";
-            return (
-              <div key={m.id} className="terminal-card p-2.5">
-                <div className="font-mono text-xs text-text-secondary mb-1.5">{m.label}</div>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {UNIVERSES.map((u) => {
-                    const row = m.cells.get(u);
-                    return (
-                      <div key={u} className="bg-bg-panel rounded-[2px] px-1 py-1 text-center">
-                        <div className="font-mono text-2xs text-text-dim uppercase tracking-wider truncate">{u}</div>
-                        {!row ? (
-                          <div className="font-mono text-2xs text-text-dim">—</div>
-                        ) : isStocks ? (
-                          <div className="font-mono text-sm text-text-primary tabular-nums">{row.above_count}</div>
-                        ) : (
-                          <>
-                            <div className={`font-mono text-xs tabular-nums ${pctTextColor(row.pct)}`}>
-                              {row.pct != null ? `${num(row.pct, 0)}%` : "—"}
-                            </div>
-                            <div className="font-mono text-2xs text-text-dim tabular-nums">
-                              {row.above_count}/{row.below_count ?? 0}
-                            </div>
-                            <div className="h-0.5 mt-0.5 bg-bg-card rounded-full overflow-hidden">
-                              <div className={`h-full ${pctBarColor(row.pct)}`} style={{ width: `${Math.max(0, Math.min(100, row.pct ?? 0))}%` }} />
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
       <div className="relative">
         <div
           className="overflow-x-auto"
@@ -259,7 +220,6 @@ export default function KeyMetricsGrid() {
         </div>
         <div className={`sm:hidden pointer-events-none absolute top-0 right-0 h-full w-8 bg-gradient-to-l from-bg-card to-transparent transition-opacity duration-200 ${atEnd ? "opacity-0" : "opacity-100"}`} />
       </div>
-      )}
     </div>
   );
 }
