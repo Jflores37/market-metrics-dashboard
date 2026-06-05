@@ -248,7 +248,7 @@ function WatchlistTable() {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable mm-aligned">
+        <table className="w-full text-xs font-mono min-w-[460px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 max-sm:w-[3.25rem]">Ticker</th>
