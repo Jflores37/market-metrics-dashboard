@@ -316,23 +316,32 @@ function parseEarningsDate(raw: string | null): { date: string | null; time: str
 }
 
 async function fetchEarnings(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number }> {
-  const url = "https://elite.finviz.com/export.ashx?v=161&f=earningsdate_thisweek,sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68,6,65";
-  const res = await fetch(`${url}&auth=${auth}`);
-  if (!res.ok) { await res.body?.cancel(); throw new Error(`Finviz earnings ${res.status}`); }
-  const rows = parseCSV(await res.text());
-  if (rows.length < 2) return { rows: [], raw: 0 };
-  const hdr = rows[0].map((h) => h.trim());
-  const tI = findCol(hdr, ["Ticker"]);
-  const dI = findCol(hdr, ["Earnings Date"]);
+  // Pull this week AND next week so the rolling CURRENT_DATE..+7d window in
+  // earnings_this_week_v always has the full week ahead -- thisweek alone leaves
+  // the back half of that window empty once it's mid-week.
+  const filters = ["earningsdate_thisweek", "earningsdate_nextweek"];
   const out: Array<Record<string, unknown>> = []; const seen = new Set<string>();
-  for (let r = 1; r < rows.length; r++) {
-    const t = str(rows[r][tI]); if (!t) continue;
-    const { date, time } = parseEarningsDate(str(rows[r][dI]));
-    if (!date) continue;
-    const key = `${t}|${date}`; if (seen.has(key)) continue; seen.add(key);
-    out.push({ ticker: t, earnings_date: date, earnings_time: time, fetched_at: new Date().toISOString() });
+  let raw = 0;
+  for (let f = 0; f < filters.length; f++) {
+    if (f > 0) await sleep(CALL_DELAY_MS);
+    const url = `https://elite.finviz.com/export.ashx?v=161&f=${filters[f]},sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68,6,65`;
+    const res = await fetch(`${url}&auth=${auth}`);
+    if (!res.ok) { await res.body?.cancel(); throw new Error(`Finviz earnings ${res.status}`); }
+    const rows = parseCSV(await res.text());
+    if (rows.length < 2) continue;
+    const hdr = rows[0].map((h) => h.trim());
+    const tI = findCol(hdr, ["Ticker"]);
+    const dI = findCol(hdr, ["Earnings Date"]);
+    raw += rows.length - 1;
+    for (let r = 1; r < rows.length; r++) {
+      const t = str(rows[r][tI]); if (!t) continue;
+      const { date, time } = parseEarningsDate(str(rows[r][dI]));
+      if (!date) continue;
+      const key = `${t}|${date}`; if (seen.has(key)) continue; seen.add(key);
+      out.push({ ticker: t, earnings_date: date, earnings_time: time, fetched_at: new Date().toISOString() });
+    }
   }
-  return { rows: out, raw: rows.length - 1 };
+  return { rows: out, raw };
 }
 
 Deno.serve(async (req: Request) => {

@@ -106,7 +106,7 @@ function breakoutHealth(u: UB, r5: number|null): { score: number|null; detail: s
   const avgSma = smas.length > 0 ? smas.reduce((a,b)=>a+b,0)/smas.length : null;
   const parts: Array<[number, number]> = [];
   if (avgSma != null) parts.push([avgSma, 0.38]);
-  if (u.pct_new_highs != null) parts.push([Math.min(100, u.pct_new_highs * 3.5), 0.28]);
+  if (u.pct_new_highs != null) parts.push([Math.min(100, u.pct_new_highs * 8), 0.28]); // 52wk new-high scale
   if (u.nh_nl_ratio != null) parts.push([u.nh_nl_ratio * 100, 0.17]);
   if (r5Score != null) parts.push([r5Score, 0.17]);
   if (parts.length === 0) return { score: null, detail: "" };
@@ -115,7 +115,7 @@ function breakoutHealth(u: UB, r5: number|null): { score: number|null; detail: s
   const score = round1(clamp(raw));
   const bits: string[] = [];
   if (avgSma != null) bits.push(`$1B+ above SMAs ~${Math.round(avgSma)}%`);
-  if (u.pct_new_highs != null) bits.push(`new 20d highs ${u.pct_new_highs.toFixed(1)}%`);
+  if (u.pct_new_highs != null) bits.push(`new 52wk highs ${u.pct_new_highs.toFixed(1)}%`);
   if (u.nh_nl_ratio != null) bits.push(`NH/(NH+NL) ${Math.round(u.nh_nl_ratio*100)}%`);
   if (r5 != null) bits.push(`5d breadth r ${r5.toFixed(2)}`);
   return { score, detail: bits.join(" · ") };
@@ -131,8 +131,8 @@ function breakoutBadge(health: number|null, u: UB, r5: number|null): { status: B
   }
   const pnh = u.pct_new_highs, nhnl = u.nh_nl_ratio;
   let tag: string;
-  if (health >= 58 && (pnh == null || pnh >= 7.5) && (nhnl == null || nhnl >= 0.42)) tag = "Working";
-  else if (health < 40 || (pnh != null && pnh < 4.0) || (nhnl != null && nhnl < 0.33)) tag = "Failing";
+  if (health >= 58 && (pnh == null || pnh >= 4.5) && (nhnl == null || nhnl >= 0.42)) tag = "Working";
+  else if (health < 40 || (pnh != null && pnh < 1.5) || (nhnl != null && nhnl < 0.33)) tag = "Failing";
   else tag = "Unclear";
   return { status: tag === "Working" ? "Yes" : tag === "Failing" ? "No" : "Mixed", tag };
 }
@@ -283,11 +283,13 @@ async function buildBreadth() {
     pct_new_highs: null, pct_new_lows: null, nh_nl_ratio: null, pct_up4_of_universe: null,
   };
   if (cap1b && cap1b.total_count > 0) {
-    if (cap1b.new_20day_highs != null) u1b.pct_new_highs = (Number(cap1b.new_20day_highs)/Number(cap1b.total_count))*100;
-    if (cap1b.new_20day_lows  != null) u1b.pct_new_lows  = (Number(cap1b.new_20day_lows) /Number(cap1b.total_count))*100;
+    // Finviz exports no 20-day high/low column, so new_20day_* in breadth_daily_history
+    // is permanently 0. Use the real, populated 52-week new-high/low counts instead.
+    if (cap1b.new_52w_highs != null) u1b.pct_new_highs = (Number(cap1b.new_52w_highs)/Number(cap1b.total_count))*100;
+    if (cap1b.new_52w_lows  != null) u1b.pct_new_lows  = (Number(cap1b.new_52w_lows) /Number(cap1b.total_count))*100;
     if (cap1b.up_4pct != null) u1b.pct_up4_of_universe = (Number(cap1b.up_4pct)/Number(cap1b.total_count))*100;
-    const nh = cap1b.new_20day_highs != null ? Number(cap1b.new_20day_highs) : null;
-    const nl = cap1b.new_20day_lows  != null ? Number(cap1b.new_20day_lows)  : null;
+    const nh = cap1b.new_52w_highs != null ? Number(cap1b.new_52w_highs) : null;
+    const nl = cap1b.new_52w_lows  != null ? Number(cap1b.new_52w_lows)  : null;
     if (nh != null && nl != null && (nh + nl) > 0) u1b.nh_nl_ratio = nh / (nh + nl);
   }
 
@@ -328,13 +330,13 @@ async function buildMomentum() {
 
   const { data: sp500Row } = await supabase
     .from("breadth_daily_history")
-    .select("new_20day_highs,total_count")
+    .select("new_52w_highs,total_count")
     .eq("universe_id", "sp500")
     .order("snapshot_date", { ascending: false })
     .limit(1);
   let pctHH: number | null = null;
-  if (sp500Row && sp500Row[0] && sp500Row[0].total_count > 0 && sp500Row[0].new_20day_highs != null) {
-    pctHH = Math.round((Number(sp500Row[0].new_20day_highs)/Number(sp500Row[0].total_count))*100*10)/10;
+  if (sp500Row && sp500Row[0] && sp500Row[0].total_count > 0 && sp500Row[0].new_52w_highs != null) {
+    pctHH = Math.round((Number(sp500Row[0].new_52w_highs)/Number(sp500Row[0].total_count))*100*10)/10;
   }
 
   return { sectors: todaysSectors, top3, bottom3, spread, pct_higher_highs: pctHH };
@@ -380,7 +382,7 @@ function buildNarrative(args: {
   const avg1b = smas.length > 0 ? smas.reduce((a,b)=>a+b,0)/smas.length : null;
   let breadthDesc: string;
   if (avg1b != null && u1b.pct_new_highs != null) {
-    breadthDesc = `$1B+ tape ~${Math.round(avg1b)}% above key SMAs, ${u1b.pct_new_highs.toFixed(1)}% new 20d highs`;
+    breadthDesc = `$1B+ tape ~${Math.round(avg1b)}% above key SMAs, ${u1b.pct_new_highs.toFixed(1)}% new 52wk highs`;
     if (breadth.ratio5 != null) breadthDesc += `, StockBee 5d ratio ${breadth.ratio5.toFixed(2)}`;
   } else if (breadth.ratio5 == null) breadthDesc = "neutral breadth";
   else if (breadth.ratio5 > 1.2) breadthDesc = "expanding breadth";
