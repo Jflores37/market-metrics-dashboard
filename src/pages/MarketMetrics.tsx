@@ -151,7 +151,7 @@ function SectorGrid() {
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[640px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[480px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Ticker</th>
@@ -172,7 +172,7 @@ function SectorGrid() {
                   <span className="text-text-primary font-semibold">{row.ticker}</span>
                   {row.is_benchmark && <span className="text-2xs text-accent-amber ml-1">·</span>}
                 </td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[180px]">{row.sector_label || "—"}</td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[110px]">{row.sector_label || "—"}</td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_week)}`}>{pct(row.perf_week, 1)}</td>

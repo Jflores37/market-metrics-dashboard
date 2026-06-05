@@ -235,7 +235,7 @@ export function ThematicsBySectorTable() {
         <span className="font-mono text-2xs text-text-dim">{data.length} sectors</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[460px] sticky-col-1 tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1">Sector</th>
@@ -251,7 +251,7 @@ export function ThematicsBySectorTable() {
           <tbody>
             {data.map((r) => (
               <tr key={r.sector} className="border-b border-border-subtle/40 hover:bg-bg-hover">
-                <td className="py-1 pl-1 text-text-primary font-semibold">{r.sector}</td>
+                <td className="py-1 pl-1 text-text-primary font-semibold truncate max-w-[120px]">{r.sector}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_day)}`}>{pct(r.perf_day, 2)}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_week)}`}>{pct(r.perf_week, 2)}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(r.perf_month)}`}>{pct(r.perf_month, 2)}</td>
@@ -290,7 +290,7 @@ function TopMoverTable({
         <span className="font-mono text-2xs text-text-dim">{rows.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[440px] tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[400px] tbl-readable">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 w-7">#</th>
