@@ -344,7 +344,7 @@ function StageAnalysisCard() {
           const c = stageColor(row.stage);
           const widthPct = (row.pct / maxPct) * 100;
           return (
-            <div key={row.stage} className="grid grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-2 items-center text-xs font-mono">
+            <div key={row.stage} className="grid grid-cols-[2rem_1fr_4rem_3rem] sm:grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
               <div className={`font-semibold ${c.text}`}>{row.stage}</div>
               <div className="h-4 bg-bg-panel rounded-sm overflow-hidden">
                 <div className={`h-full ${c.bar} transition-all`} style={{ width: `${widthPct}%` }} />
