@@ -190,6 +190,23 @@
   .tbl-readable td {
     font-size: 0.75rem;
   }
+  /* Market Metrics tables only: lift headers to match the 12px data rows
+     (.tbl-readable bumps only td). Scoped under .mm-tables so the shared
+     .tbl-readable on the Intraday / Super Scanners tabs is untouched. */
+  .mm-tables .tbl-readable th {
+    font-size: 0.75rem;
+  }
+  /* Opt-in numeric column grid: pin every right-aligned number column to one
+     width so stacked sibling tables (e.g. Top Gainers vs Top Losers) share the
+     same column positions and nothing is cramped. Mono values are always
+     narrower than this; the overflow-x-auto wrapper scrolls a wide row rather
+     than clip it (lossless). First-column / text widths are pinned per-table
+     with max-sm:w-[…] so the whole row is deterministic and lines up. */
+  .mm-aligned td.tabular-nums.text-right,
+  .mm-aligned th.text-right {
+    min-width: 3.75rem;
+    white-space: nowrap;
+  }
   .sit-narrative {
     color: hsl(220 10% 48%);
   }

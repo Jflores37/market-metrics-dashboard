@@ -151,11 +151,11 @@ function SectorGrid() {
         <span className="font-mono text-2xs text-text-dim">{data.length} ETFs</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[480px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[480px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
-              <th className="py-1.5 pl-1">Ticker</th>
-              <th className="py-1.5">Name</th>
+              <th className="py-1.5 pl-1 max-sm:w-[3.25rem]">Ticker</th>
+              <th className="py-1.5 max-sm:w-[110px]">Name</th>
               <th className="py-1.5 text-right">Price</th>
               <th className="py-1.5 text-right">Day</th>
               <th className="py-1.5 text-right">Wk</th>
@@ -248,11 +248,11 @@ function WatchlistTable() {
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[760px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
-              <th className="py-1.5 pl-1">Ticker</th>
-              <th className="py-1.5">Sector</th>
+              <th className="py-1.5 pl-1 max-sm:w-[3.25rem]">Ticker</th>
+              <th className="py-1.5 max-sm:w-[6rem]">Sector</th>
               <th className="py-1.5 text-right">Cap</th>
               <th className="py-1.5 text-right">Price</th>
               <th className="py-1.5 text-right">Day</th>
@@ -268,7 +268,7 @@ function WatchlistTable() {
             {data.map((row) => (
               <tr key={row.ticker} className="border-b border-border-subtle/40 hover:bg-bg-hover">
                 <td className="py-1 pl-1"><TickerLink ticker={row.ticker} /></td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">{row.sector || "—"}</td>
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px] max-sm:max-w-[6rem]">{row.sector || "—"}</td>
                 <td className="py-1 text-text-secondary tabular-nums text-right text-2xs">{usdCompact(row.market_cap_millions, "millions")}</td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(row.price, 2)}</td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(row.perf_day)}`}>{pct(row.perf_day, 1)}</td>
@@ -344,7 +344,7 @@ function StageAnalysisCard() {
           const c = stageColor(row.stage);
           const widthPct = (row.pct / maxPct) * 100;
           return (
-            <div key={row.stage} className="grid grid-cols-[2rem_1fr_4rem_3rem] sm:grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
+            <div key={row.stage} className="grid grid-cols-[2rem_1fr_6rem_3rem] sm:grid-cols-[2.5rem_1fr_5.5rem_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
               <div className={`font-semibold ${c.text}`}>{row.stage}</div>
               <div className="h-4 bg-bg-panel rounded-sm overflow-hidden">
                 <div className={`h-full ${c.bar} transition-all`} style={{ width: `${widthPct}%` }} />
@@ -629,7 +629,7 @@ function StockbeeMomentum50() {
 // ===== Main page =====
 export default function MarketMetrics() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 mm-tables">
       <header className="flex items-baseline justify-between gap-4 flex-wrap">
         <div className="flex flex-col items-start gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
           <div className="flex items-baseline gap-2">

@@ -60,7 +60,7 @@ function UniverseBreadthCard({ universe, rows }: { universe: string; rows: Bread
           return (
             <div
               key={r.metric_id}
-              className="grid grid-cols-[4rem_1fr_3rem] sm:grid-cols-[5.5rem_1fr_3.25rem] gap-1.5 sm:gap-2 items-center text-xs font-mono"
+              className="grid grid-cols-[6.5rem_1fr_3rem] sm:grid-cols-[5.5rem_1fr_3.25rem] gap-1.5 sm:gap-2 items-center text-xs font-mono"
             >
               <div className="text-text-dim text-2xs truncate">{r.metric_label}</div>
               <div className="h-3.5 bg-bg-panel rounded-sm overflow-hidden">

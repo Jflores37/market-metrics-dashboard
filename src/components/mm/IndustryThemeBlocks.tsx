@@ -88,11 +88,11 @@ export function LeadingIndustriesTable() {
         <span className="font-mono text-2xs text-text-dim">top {data.length} · ★ = top both wk &amp; mo</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
-              <th className="py-1.5 pl-1">Industry</th>
-              <th className="py-1.5">Sector</th>
+              <th className="py-1.5 pl-1 max-sm:w-[7rem]">Industry</th>
+              <th className="py-1.5 max-sm:w-[5rem]">Sector</th>
               <th className="py-1.5 text-right">Wk Avg</th>
               <th className="py-1.5 text-right">Mo Avg</th>
               <th className="py-1.5 text-right">Stocks</th>
@@ -105,11 +105,11 @@ export function LeadingIndustriesTable() {
                 key={r.industry}
                 className={`border-b border-border-subtle/40 hover:bg-bg-hover ${r.top_both ? "bg-accent-green/5" : ""}`}
               >
-                <td className="py-1 pl-1 text-text-primary font-semibold truncate max-w-[180px]">
+                <td className="py-1 pl-1 text-text-primary font-semibold truncate max-w-[180px] max-sm:max-w-[7rem]">
                   {r.industry}
                   {r.top_both && <span className="text-2xs text-accent-green ml-1">★</span>}
                 </td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px] max-sm:max-w-[5rem]">
                   {r.sector}
                 </td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
@@ -162,11 +162,11 @@ export function ThematicsByThemeTable() {
         <span className="font-mono text-2xs text-text-dim">top {data.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[680px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
-              <th className="py-1.5 pl-1">Theme</th>
-              <th className="py-1.5">Sector</th>
+              <th className="py-1.5 pl-1 max-sm:w-[7rem]">Theme</th>
+              <th className="py-1.5 max-sm:w-[5rem]">Sector</th>
               <th className="py-1.5 text-right">Wk Avg</th>
               <th className="py-1.5 text-right">Mo Avg</th>
               <th className="py-1.5 text-right">Stocks</th>
@@ -179,11 +179,11 @@ export function ThematicsByThemeTable() {
                 key={r.theme}
                 className={`border-b border-border-subtle/40 hover:bg-bg-hover ${r.top_both ? "bg-accent-green/5" : ""}`}
               >
-                <td className="py-1 pl-1 text-text-primary font-semibold truncate max-w-[180px]">
+                <td className="py-1 pl-1 text-text-primary font-semibold truncate max-w-[180px] max-sm:max-w-[7rem]">
                   {r.theme}
                   {r.top_both && <span className="text-2xs text-accent-green ml-1">★</span>}
                 </td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px]">
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[120px] max-sm:max-w-[5rem]">
                   {r.sector}
                 </td>
                 <td className={`py-1 tabular-nums text-right ${colorClass(r.week_avg)}`}>
@@ -235,10 +235,10 @@ export function ThematicsBySectorTable() {
         <span className="font-mono text-2xs text-text-dim">{data.length} sectors</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[460px] sticky-col-1 tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[460px] sticky-col-1 tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
-              <th className="py-1.5 pl-1">Sector</th>
+              <th className="py-1.5 pl-1 max-sm:w-[120px]">Sector</th>
               <th className="py-1.5 text-right">Day</th>
               <th className="py-1.5 text-right">Wk</th>
               <th className="py-1.5 text-right">Mo</th>
@@ -290,12 +290,12 @@ function TopMoverTable({
         <span className="font-mono text-2xs text-text-dim">{rows.length}</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono min-w-[400px] tbl-readable">
+        <table className="w-full text-xs font-mono min-w-[400px] tbl-readable mm-aligned">
           <thead className="border-b border-border-subtle">
             <tr className="text-2xs text-text-dim uppercase tracking-wider text-left">
               <th className="py-1.5 pl-1 w-7">#</th>
-              <th className="py-1.5">Ticker</th>
-              <th className="py-1.5">Industry</th>
+              <th className="py-1.5 max-sm:w-[3.25rem]">Ticker</th>
+              <th className="py-1.5 max-sm:w-[7rem]">Industry</th>
               <th className="py-1.5 text-right">Price</th>
               <th className="py-1.5 text-right">Day</th>
               <th className="py-1.5 text-right pr-1">RSI</th>
@@ -309,7 +309,7 @@ function TopMoverTable({
               >
                 <td className="py-1 pl-1 text-text-dim tabular-nums">{r.rank}</td>
                 <td className="py-1 text-text-primary font-semibold">{r.ticker}</td>
-                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px]">
+                <td className="py-1 text-text-secondary text-2xs truncate max-w-[140px] max-sm:max-w-[7rem]">
                   {r.industry || "—"}
                 </td>
                 <td className="py-1 text-text-primary tabular-nums text-right">{usd(r.price, 2)}</td>
