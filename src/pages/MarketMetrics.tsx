@@ -339,14 +339,14 @@ function StageAnalysisCard() {
         </div>
         <span className="font-mono text-2xs text-text-dim tabular-nums">{universe.toLocaleString()} stocks</span>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {data.map((row) => {
           const c = stageColor(row.stage);
           const widthPct = (row.pct / maxPct) * 100;
           return (
-            <div key={row.stage} className="grid grid-cols-[1.75rem_4.5rem_1fr_3rem] sm:grid-cols-[2rem_6rem_1fr_3.5rem] gap-1.5 sm:gap-2 items-center text-xs font-mono">
+            <div key={row.stage} className="grid grid-cols-[1.75rem_1fr_6rem_3rem] sm:grid-cols-[2rem_1fr_6.5rem_3.5rem] gap-2 items-center text-xs font-mono">
               <div className={`font-semibold ${c.text}`}>{row.stage}</div>
-              <div className="h-4 bg-bg-panel rounded-sm overflow-hidden">
+              <div className="h-5 bg-bg-panel rounded-sm overflow-hidden">
                 <div className={`h-full ${c.bar} transition-all`} style={{ width: `${widthPct}%` }} />
               </div>
               <div className="text-text-dim text-2xs truncate">{STAGE_DESC[row.stage]}</div>
