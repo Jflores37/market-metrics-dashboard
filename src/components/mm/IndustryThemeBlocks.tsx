@@ -348,7 +348,7 @@ export function ThematicsTopMovers() {
   const losers = data.filter((r) => r.mover_side === "loser");
 
   return (
-    <div className="grid lg:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       <TopMoverTable title="Thematics · Top Gainers" rows={gainers} accent="green" />
       <TopMoverTable title="Thematics · Top Losers" rows={losers} accent="red" />
     </div>
