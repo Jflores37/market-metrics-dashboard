@@ -646,7 +646,7 @@ export default function MarketMetrics() {
       <BreadthBars universes={["NQ100", "SPY500", "DJIA"]} title="Breadth Bars · Major Indexes" icon="▌" />
       <BreadthBars universes={["RUS2000", "$1B+"]} title="Breadth Bars · Small-cap / Liquid" icon="▌" />
 
-      <div className="grid lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <SectorGrid />
         <StageAnalysisCard />
       </div>
