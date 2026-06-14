@@ -9,6 +9,8 @@ import CategoryPanel, {
   TONE_DOT,
   scoreColor,
   scoreBg,
+  ewsColor,
+  ewsBg,
 } from "@/components/sit/CategoryPanel";
 
 interface SITRow {
@@ -27,6 +29,8 @@ interface SITRow {
   exec_followthrough_status: string | null; exec_followthrough_detail: string | null;
   narrative_text: string | null;
   suggested_action: string | null;
+  is_stale: boolean | null;
+  market_date: string | null;
   raw_inputs: {
     volatility?: { vix: number | null; vix_5d_slope: number | null; vix_1y_pct: number | null; vvix?: number | null };
     trend?: { spy_above_20: boolean | null; spy_above_50: boolean | null; spy_above_200: boolean | null; qqq_above_50: boolean | null; regime: string };
@@ -239,8 +243,8 @@ function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
     { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: "Neutral", badgeTone: toneP(b?.pct_above_50) },
     { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: "Neutral", badgeTone: toneP(b?.pct_above_200) },
     { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: "Neutral", badgeTone: toneP(b?.pct_above_20) },
-    { label: "NYSE A/D", value: adValue, badge: ad == null ? "—" : ad > 1 ? "Positive" : ad < 1 ? "Negative" : "Flat", badgeTone: ad == null ? "gray" : ad > 1 ? "green" : ad < 1 ? "red" : "yellow" },
-    { label: "NAS Highs/Lows", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
+    { label: "4%↑/↓ (S&P)", value: adValue, badge: ad == null ? "—" : ad > 1 ? "Positive" : ad < 1 ? "Negative" : "Flat", badgeTone: ad == null ? "gray" : ad > 1 ? "green" : ad < 1 ? "red" : "yellow" },
+    { label: "New 52wk H/L (S&P)", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
   ];
 }
 
@@ -332,6 +336,12 @@ export default function ShouldITrade() {
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
       </div>
 
+      {data.is_stale && (
+        <div className="terminal-card border-accent-red p-3 text-accent-red font-mono text-xs">
+          ⚠ This verdict is from {data.snapshot_date}. The market has traded since (latest data {data.market_date}) — the engine may be behind; treat with caution.
+        </div>
+      )}
+
       <div className="terminal-card p-5">
         <div className="flex items-center gap-5 flex-wrap">
           <div className="shrink-0 text-center">
@@ -375,10 +385,10 @@ export default function ShouldITrade() {
               <span className="text-accent-cyan signal-glow-cyan">◐</span>
               <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">Execution Window</span>
             </div>
-            <span className={`font-mono text-2xl font-bold tabular-nums ${scoreColor(ews)}`}>{num(ews, 0)}</span>
+            <span className={`font-mono text-2xl font-bold tabular-nums ${ewsColor(ews)}`}>{num(ews, 0)}</span>
           </div>
           <div className="h-1 bg-bg-panel rounded-full overflow-hidden mb-4">
-            <div className={`h-full ${scoreBg(ews)}`} style={{ width: `${Math.max(0, Math.min(100, ews))}%` }} />
+            <div className={`h-full ${ewsBg(ews)}`} style={{ width: `${Math.max(0, Math.min(100, ews))}%` }} />
           </div>
           <div className="space-y-3">
             <ExecFactor label="Breakouts working?" value={data.exec_breakouts_status} badge={data.exec_breakouts_detail} />

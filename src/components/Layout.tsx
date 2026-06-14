@@ -30,7 +30,7 @@ export default function Layout() {
           <Outlet />
         </TerminalFrame>
         <footer className="border-t border-border-subtle px-4 md:px-6 py-3 text-2xs text-text-dim mono uppercase tracking-widest text-center">
-          Pulse · backend cron-driven · data refreshes every 10 min during market hours
+          Pulse · backend cron-driven · refresh cadence varies by panel (intraday ~1 min · macro ~30 min)
         </footer>
       </div>
     </div>

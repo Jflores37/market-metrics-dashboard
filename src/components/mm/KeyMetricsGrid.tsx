@@ -49,6 +49,33 @@ function pctBarColor(pct: number | null): string {
   return "bg-accent-red";
 }
 
+// The bullish 70/50/30 ramp above is right for "% of names above X" rows, but
+// wrong for the three breadth-COUNT rows (naturally single-digit % of universe):
+//   up4  — "X up vs Y down" balance, color by up/(up+down), not % of universe
+//   nh20 — new 52wk highs: more is bullish (small magnitudes)
+//   nl20 — new 52wk lows: more is BEARISH — must not use the bullish ramp
+function metricVisual(row: KeyMetricRow): { text: string; textColor: string; barColor: string; barWidth: number } {
+  if (row.metric_id === "up4") {
+    const up = row.above_count ?? 0;
+    const dn = row.below_count ?? 0;
+    const bal = up + dn > 0 ? (up / (up + dn)) * 100 : null;
+    return { text: bal != null ? `${num(bal, 0)}%` : "—", textColor: pctTextColor(bal), barColor: pctBarColor(bal), barWidth: bal ?? 0 };
+  }
+  if (row.metric_id === "nl20") {
+    const p = row.pct;
+    const tc = p == null ? "text-text-dim" : p >= 10 ? "text-accent-red" : p >= 3 ? "text-accent-yellow" : "text-accent-green";
+    const bc = p == null ? "bg-text-dim" : p >= 10 ? "bg-accent-red" : p >= 3 ? "bg-accent-yellow" : "bg-accent-green";
+    return { text: p != null ? `${num(p, 0)}%` : "—", textColor: tc, barColor: bc, barWidth: p ?? 0 };
+  }
+  if (row.metric_id === "nh20") {
+    const p = row.pct;
+    const tc = p == null ? "text-text-dim" : p >= 8 ? "text-accent-green" : p >= 3 ? "text-accent-blue" : p > 0 ? "text-accent-yellow" : "text-text-dim";
+    const bc = p == null ? "bg-text-dim" : p >= 8 ? "bg-accent-green" : p >= 3 ? "bg-accent-blue" : p > 0 ? "bg-accent-yellow" : "bg-text-dim";
+    return { text: p != null ? `${num(p, 0)}%` : "—", textColor: tc, barColor: bc, barWidth: p ?? 0 };
+  }
+  return { text: row.pct != null ? `${num(row.pct, 0)}%` : "—", textColor: pctTextColor(row.pct), barColor: pctBarColor(row.pct), barWidth: row.pct ?? 0 };
+}
+
 function useKeyMetrics() {
   return useQuery({
     queryKey: ["key-metrics-grid"],
@@ -79,11 +106,12 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
   const aboveUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "above");
   const belowUrl = finvizScreenerUrl(row.universe_id, row.metric_id, "below");
   const linkCls = "hover:text-accent-cyan hover:underline transition-colors";
+  const v = metricVisual(row);
   return (
     <td className="py-1.5 px-2 text-right align-top">
       <div className="space-y-0.5">
-        <div className={`font-mono text-xs tabular-nums ${pctTextColor(row.pct)}`}>
-          {row.pct != null ? `${num(row.pct, 0)}%` : "—"}
+        <div className={`font-mono text-xs tabular-nums ${v.textColor}`}>
+          {v.text}
         </div>
         <div className="font-mono text-2xs text-text-dim tabular-nums">
           {aboveUrl ? (
@@ -104,8 +132,8 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
         </div>
         <div className="h-0.5 bg-bg-panel rounded-full overflow-hidden">
           <div
-            className={`h-full ${pctBarColor(row.pct)}`}
-            style={{ width: `${Math.max(0, Math.min(100, row.pct ?? 0))}%` }}
+            className={`h-full ${v.barColor}`}
+            style={{ width: `${Math.max(0, Math.min(100, v.barWidth))}%` }}
           />
         </div>
       </div>

@@ -43,6 +43,26 @@ export const scoreBg = (s: number | null) =>
     ? "bg-accent-yellow"
     : "bg-accent-red";
 
+// Execution-Window score uses the engine's follow-through bands (>=70 / 40),
+// NOT the 80/60 MQS bands — so the SIT page and the pinned banner agree.
+export const ewsColor = (s: number | null) =>
+  s == null
+    ? "text-text-dim"
+    : s >= 70
+    ? "text-accent-green"
+    : s >= 40
+    ? "text-accent-yellow"
+    : "text-accent-red";
+
+export const ewsBg = (s: number | null) =>
+  s == null
+    ? "bg-text-dim"
+    : s >= 70
+    ? "bg-accent-green"
+    : s >= 40
+    ? "bg-accent-yellow"
+    : "bg-accent-red";
+
 export default function CategoryPanel({
   icon,
   name,

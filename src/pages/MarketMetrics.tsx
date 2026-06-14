@@ -56,7 +56,7 @@ function PinnedSITBanner() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("should_i_trade_latest_v")
-        .select("snapshot_date, mode, decision, market_quality_score, execution_window_score, narrative_text, suggested_action")
+        .select("snapshot_date, mode, decision, market_quality_score, execution_window_score, narrative_text, suggested_action, is_stale, market_date")
         .eq("mode", "swing")
         .maybeSingle();
       if (error) throw error;
@@ -81,7 +81,13 @@ function PinnedSITBanner() {
         <div className="font-mono text-2xs text-text-dim uppercase tracking-widest">
           Should I Trade · swing mode
         </div>
-        <div className="font-mono text-2xs text-text-dim">as of {data.snapshot_date}</div>
+        {data.is_stale ? (
+          <div className="font-mono text-2xs text-accent-red font-semibold">
+            ⚠ STALE · {data.snapshot_date} (market {data.market_date})
+          </div>
+        ) : (
+          <div className="font-mono text-2xs text-text-dim">as of {data.snapshot_date}</div>
+        )}
       </div>
       <div className="flex items-baseline gap-6 flex-wrap">
         <div className={`font-mono text-3xl font-bold ${decisionColor}`}>{data.decision}</div>

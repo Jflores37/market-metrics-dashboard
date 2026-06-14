@@ -217,6 +217,14 @@ function fiscalDisplay(row: FiscalRow): string {
   }
 }
 
+// Group fiscal rows by FRED id (not blind array position) so each card's rows
+// always match its title even if the view's row order changes.
+function pickFiscal(fiscal: FiscalRow[], ids: string[]): FiscalRow[] {
+  return ids
+    .map((id) => fiscal.find((r) => r.fred_id === id))
+    .filter((r): r is FiscalRow => r != null);
+}
+
 function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
   return (
     <div className="terminal-card p-4">
@@ -295,9 +303,9 @@ export default function MacroMonitor() {
               U.S. Fiscal Snapshot (Latest Available)
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <FiscalCard title="Debt & Balance" rows={data.fiscal.slice(0, 2)} />
-              <FiscalCard title="Revenue & Spending" rows={data.fiscal.slice(2, 4)} />
-              <FiscalCard title="Interest & Ratios" rows={data.fiscal.slice(4, 6)} />
+              <FiscalCard title="Debt & Balance" rows={pickFiscal(data.fiscal, ["GFDEBTN", "FYFSD"])} />
+              <FiscalCard title="Revenue & Spending" rows={pickFiscal(data.fiscal, ["FGRECPT", "FGEXPND"])} />
+              <FiscalCard title="Interest & Ratios" rows={pickFiscal(data.fiscal, ["FYOINT", "GFDEGDQ188S"])} />
             </div>
           </div>
         </>

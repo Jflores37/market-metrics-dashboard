@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { num, pct, usd, usdCompact, numCompact, colorClass, timeShort } from "@/lib/format";
+import { num, pct, usd, usdCompact, numCompact, colorClass, timeShort, dateLong } from "@/lib/format";
 import { TickerLink } from "@/components/TickerChartModal";
 
 // ===== Types =====
@@ -334,6 +334,19 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
 // ===== Main page =====
 export default function Intraday() {
   const { data, isLoading, error } = useIntradayDashboard();
+  const { data: fresh } = useQuery({
+    queryKey: ["intraday-freshness"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("intraday_freshness_v")
+        .select("data_as_of, is_stale")
+        .maybeSingle();
+      if (error) throw error;
+      return data as { data_as_of: string | null; is_stale: boolean | null } | null;
+    },
+    enabled: isSupabaseConfigured,
+    refetchInterval: 60_000,
+  });
 
   return (
     <div className="space-y-4">
@@ -343,10 +356,16 @@ export default function Intraday() {
           <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Intraday</h1>
           <span className="text-xs text-text-dim mono">— Live market movers</span>
         </div>
-        {data && (
-          <div className="font-mono text-2xs text-text-dim">
-            updated {timeShort(data.generated_at)} · auto-refresh 1m
-          </div>
+        {fresh?.data_as_of && (
+          fresh.is_stale ? (
+            <div className="font-mono text-2xs text-accent-yellow">
+              data as of {dateLong(fresh.data_as_of)} {timeShort(fresh.data_as_of)} · not live
+            </div>
+          ) : (
+            <div className="font-mono text-2xs text-text-dim">
+              live · updated {timeShort(fresh.data_as_of)} · 1m
+            </div>
+          )
         )}
       </header>
 
