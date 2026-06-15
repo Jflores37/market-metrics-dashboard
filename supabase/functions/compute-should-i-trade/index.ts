@@ -23,8 +23,12 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const bucket3 = (s: number, mid: "moderate" | "weakening"): Interp =>
   s >= 75 ? "healthy" : s >= 50 ? mid : "risk-off";
+// One calibrated transfer for "% of universe at 52wk highs" (rarely > ~12% even
+// on strong tapes): ~8% reads strong (~72), ~11%+ saturates near 100. Used in
+// every place new-high breadth feeds a 0-100 score so the scalings can't disagree.
+const newHighScore = (pct: number) => clamp(pct * 9);
 
-function scoreVolatility(vix: number | null, slope: number | null) {
+function scoreVolatility(vix: number | null, slope: number | null, pctile: number | null = null, vvix: number | null = null) {
   if (vix == null) return { score: 50.0, interpretation: "unknown" as Interp };
   let base = 100;
   if (vix < 12) base = 95;
@@ -40,7 +44,18 @@ function scoreVolatility(vix: number | null, slope: number | null) {
     else if (slope > 0.5) penalty = 8;
     else if (slope < -0.5) penalty = -5;
   }
-  const score = clamp(base - penalty);
+  let score = base - penalty;
+  // 1-year percentile: vol cheap vs its own year = calmer; rich = more risk.
+  if (pctile != null) {
+    if (pctile < 20) score += 3;
+    else if (pctile > 80) score -= 5;
+  }
+  // VVIX (vol-of-vol): stress in the options market itself.
+  if (vvix != null) {
+    if (vvix > 110) score -= 5;
+    else if (vvix < 85) score += 2;
+  }
+  score = clamp(score);
   return { score: round1(score), interpretation: bucket3(score, "moderate") };
 }
 
@@ -106,7 +121,7 @@ function breakoutHealth(u: UB, r5: number|null): { score: number|null; detail: s
   const avgSma = smas.length > 0 ? smas.reduce((a,b)=>a+b,0)/smas.length : null;
   const parts: Array<[number, number]> = [];
   if (avgSma != null) parts.push([avgSma, 0.38]);
-  if (u.pct_new_highs != null) parts.push([Math.min(100, u.pct_new_highs * 8), 0.28]); // 52wk new-high scale
+  if (u.pct_new_highs != null) parts.push([newHighScore(u.pct_new_highs), 0.28]); // 52wk new-high scale
   if (u.nh_nl_ratio != null) parts.push([u.nh_nl_ratio * 100, 0.17]);
   if (r5Score != null) parts.push([r5Score, 0.17]);
   if (parts.length === 0) return { score: null, detail: "" };
@@ -151,7 +166,7 @@ function scoreExecWindow(
   else if (r5 != null) parts.push([clamp((r5-0.5)*80), 0.4]);
   if (breadth.pct_above_20 != null) parts.push([breadth.pct_above_20, bh.score != null ? 0.28 : 0.3]);
   if (momentum.spread != null) parts.push([clamp(50 + momentum.spread*15), bh.score != null ? 0.17 : 0.2]);
-  if (momentum.pct_higher_highs != null) parts.push([Math.min(100, momentum.pct_higher_highs*5), 0.1]);
+  if (momentum.pct_higher_highs != null) parts.push([newHighScore(momentum.pct_higher_highs), 0.1]);
 
   let score: number;
   if (parts.length === 0) score = 50;
@@ -422,9 +437,9 @@ Deno.serve(async (_req: Request) => {
       fetchVixBlock(), fetchTrendBlock(), buildBreadth(), buildMomentum(), buildMacro(),
     ]);
 
-    const snapshotDate = new Date().toISOString().slice(0, 10);
+    const snapshotDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
-    const sVol   = scoreVolatility(vol.vix, vol.vix_5d_slope);
+    const sVol   = scoreVolatility(vol.vix, vol.vix_5d_slope, vol.vix_1y_pct, vol.vvix);
     const sTrend = scoreTrend(trend.regime, trend.qqq_above_50, trend.spy_rsi);
     const sBr    = scoreBreadthCat(breadth.pct_above_200, breadth.ratio5, breadth.new_highs, breadth.new_lows);
     const sMom   = scoreMomentumCat(momentum.spread, momentum.pct_higher_highs);
