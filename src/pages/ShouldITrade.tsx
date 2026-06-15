@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { num, pct, colorClass } from "@/lib/format";
@@ -42,14 +43,14 @@ interface SITRow {
 
 interface SectorRow { ticker: string; sector_label: string | null; perf_day: number | null; is_benchmark: boolean }
 
-function useSIT() {
+function useSIT(mode: "swing" | "day") {
   return useQuery({
-    queryKey: ["sit-swing-full"],
+    queryKey: ["sit-full", mode],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("should_i_trade_latest_v")
         .select("*")
-        .eq("mode", "swing")
+        .eq("mode", mode)
         .maybeSingle();
       if (error) throw error;
       return data as SITRow | null;
@@ -84,12 +85,16 @@ function useDxy() {
         .select("observation_date, value")
         .eq("series_id", "DTWEXBGS")
         .order("observation_date", { ascending: false })
-        .limit(8);
+        .limit(10);
       if (error) throw error;
       const rows = (data ?? []) as { observation_date: string; value: number | null }[];
       if (rows.length === 0) return null;
       const latest = rows[0]?.value != null ? Number(rows[0].value) : null;
-      const prior = rows[5]?.value != null ? Number(rows[5].value) : null;
+      // ~1 week ago, date-anchored (robust to holidays) rather than positional rows[5]
+      const cutoff = new Date(rows[0].observation_date);
+      cutoff.setDate(cutoff.getDate() - 7);
+      const priorRow = rows.find((r) => new Date(r.observation_date) <= cutoff);
+      const prior = priorRow?.value != null ? Number(priorRow.value) : null;
       const pctChg =
         latest != null && prior != null && prior !== 0
           ? ((latest - prior) / prior) * 100
@@ -308,9 +313,11 @@ function buildMacro(
 const ICONS = { vol: "〰", trend: "↗", breadth: "⊞", momentum: "↑", macro: "●" };
 
 export default function ShouldITrade() {
-  const { data, isLoading } = useSIT();
+  const [mode, setMode] = useState<"swing" | "day">("swing");
+  const { data, isLoading } = useSIT(mode);
   const { data: sectors } = useSectors();
   const { data: dxy } = useDxy();
+  const thr = mode === "swing" ? { yes: 80, caution: 60 } : { yes: 85, caution: 65 };
 
   if (!isSupabaseConfigured) return <div className="terminal-card border-accent-red p-4 text-accent-red font-mono text-sm">Supabase not configured.</div>;
   if (isLoading) return <div className="terminal-card p-6"><div className="font-mono text-xs text-text-dim">Loading…</div></div>;
@@ -334,6 +341,17 @@ export default function ShouldITrade() {
       <div className="flex items-baseline gap-3 flex-wrap pb-1">
         <h1 className="font-mono text-xl font-bold tracking-tight text-text-primary signal-glow-green">SHOULD I BE TRADING?</h1>
         <span className="text-2xs text-text-dim mono uppercase tracking-widest">market quality terminal.</span>
+        <div className="ml-auto flex items-center gap-1 font-mono text-2xs">
+          {(["swing", "day"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`px-2 py-1 rounded uppercase tracking-widest border ${mode === m ? "border-accent-cyan text-accent-cyan" : "border-border-subtle text-text-dim hover:text-text-secondary"}`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       {data.is_stale && (
@@ -349,7 +367,7 @@ export default function ShouldITrade() {
             <div className={`inline-block px-5 py-1.5 border-2 ${decBorder(data.decision)} rounded`}>
               <div className={`font-mono text-3xl font-bold ${decText(data.decision)}`}>{data.decision}</div>
             </div>
-            <div className="text-2xs text-text-dim mono mt-1.5">Swing Trading</div>
+            <div className="text-2xs text-text-dim mono mt-1.5">{mode === "swing" ? "Swing Trading" : "Day Trading"}</div>
           </div>
 
           <div className="shrink-0"><Gauge value={Number(data.market_quality_score)} /></div>
@@ -425,9 +443,9 @@ export default function ShouldITrade() {
             <span className="font-mono text-xl font-bold text-text-primary tabular-nums">{num(data.market_quality_score, 0)}/100</span>
           </div>
           <div className="mt-3 space-y-1 text-2xs mono">
-            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-green" /><span className="text-text-dim">80-100: YES (press risk)</span></div>
-            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-yellow" /><span className="text-text-dim">60-79: CAUTION (selective)</span></div>
-            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-red" /><span className="text-text-dim">&lt;60: NO (preserve capital)</span></div>
+            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-green" /><span className="text-text-dim">{thr.yes}-100: YES (press risk)</span></div>
+            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-yellow" /><span className="text-text-dim">{thr.caution}-{thr.yes - 1}: CAUTION (selective)</span></div>
+            <div className="flex items-center gap-2"><span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-red" /><span className="text-text-dim">&lt;{thr.caution}: NO (preserve capital)</span></div>
           </div>
         </div>
 
