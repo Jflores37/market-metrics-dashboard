@@ -395,10 +395,10 @@ function StockbeeBreadthCard() {
   if (!data) return null;
 
   const t2108Tone =
-    data.t2108 >= 70 ? "text-accent-red" :
-    data.t2108 >= 50 ? "text-accent-green" :
-    data.t2108 >= 30 ? "text-accent-yellow" :
-    "text-accent-red";
+    data.t2108 >= 70 ? "text-accent-red" :       // overbought
+    data.t2108 >= 30 ? "text-accent-green" :     // healthy mid-range
+    data.t2108 >= 20 ? "text-accent-yellow" :    // weak / nearing oversold
+    "text-accent-cyan";                          // oversold extreme — distinct from overbought red
 
   const ratio5Tone =
     Number(data.ratio5) >= 1.5 ? "text-accent-green" :
