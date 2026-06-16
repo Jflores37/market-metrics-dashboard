@@ -108,7 +108,7 @@ function makeRRGDot(isMobile: boolean, color: string) {
     if (payload?.isStart) {
       return <circle key={`s-${payload.ticker}`} cx={cx} cy={cy} r={2} fill="none" stroke={color} strokeOpacity={0.5} />;
     }
-    return <g key={`t-${payload?.ticker}-${payload?.op}`} />;
+    return <g key={`t-${payload?.ticker}-${payload?.idx}`} />;
   };
 }
 
@@ -153,13 +153,13 @@ export default function RRGScatter() {
       return {
         ticker: cur.ticker, sector_label: cur.sector_label,
         rs_ratio: r, rs_momentum: m, quadrant: quadrantOf(r, m),
-        isCurrent: false, isStart: i === 0, op: 0.18 + 0.32 * (n > 1 ? i / (n - 1) : 1),
+        isCurrent: false, isStart: i === 0, idx: i,
       };
     });
     points.push({
       ticker: cur.ticker, sector_label: cur.sector_label,
       rs_ratio: Number(cur.rs_ratio), rs_momentum: Number(cur.rs_momentum),
-      quadrant: cur.quadrant, isCurrent: true, isStart: false, op: 1,
+      quadrant: cur.quadrant, isCurrent: true, isStart: false, idx: n,
     });
     return { ticker: cur.ticker, color, points };
   });

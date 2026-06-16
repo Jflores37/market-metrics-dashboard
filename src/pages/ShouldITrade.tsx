@@ -108,15 +108,15 @@ function useDxy() {
 const decBorder = (d: string) => d === "YES" ? "border-accent-green" : d === "CAUTION" ? "border-accent-yellow" : "border-accent-red";
 const decText = (d: string) => d === "YES" ? "text-accent-green" : d === "CAUTION" ? "text-accent-yellow" : "text-accent-red";
 
-function Gauge({ value, size = 110 }: { value: number | null; size?: number }) {
+function Gauge({ value, size = 110, yes = 80, caution = 60 }: { value: number | null; size?: number; yes?: number; caution?: number }) {
   const v = value == null ? 0 : Math.max(0, Math.min(100, Number(value)));
   const cx = size / 2; const cy = size / 2;
   const r = size / 2 - 8; const sw = 7;
   const c = 2 * Math.PI * r;
   const dash = (v / 100) * c;
-  const color = v >= 80 ? chartColors.green : v >= 60 ? chartColors.amber : chartColors.red;
+  const color = v >= yes ? chartColors.green : v >= caution ? chartColors.amber : chartColors.red;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`Market quality score ${Math.round(v)} of 100`}>
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={chartColors.border} strokeWidth={sw} />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={sw}
         strokeDasharray={`${dash.toFixed(2)} ${c.toFixed(2)}`}
@@ -236,6 +236,7 @@ function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
   const b = r.breadth;
   const fmtP = (n: number | null | undefined) => n == null ? "—" : `${num(n, 1)}%`;
   const toneP = (n: number | null | undefined): BadgeTone => n == null ? "gray" : n >= 60 ? "green" : n >= 40 ? "yellow" : "red";
+  const wordP = (n: number | null | undefined): string => { const t = toneP(n); return t === "green" ? "Strong" : t === "yellow" ? "Neutral" : t === "red" ? "Weak" : "—"; };
   const up4 = b?.up4 ?? null;
   const down4 = b?.down4 ?? null;
   const ad = up4 != null && down4 != null && down4 > 0 ? up4 / down4 : null;
@@ -245,9 +246,9 @@ function buildBreadth(r: SITRow["raw_inputs"]): DetailRow[] {
       ? `${up4 ?? 0}/${down4 ?? 0}`
       : "—";
   return [
-    { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: "Neutral", badgeTone: toneP(b?.pct_above_50) },
-    { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: "Neutral", badgeTone: toneP(b?.pct_above_200) },
-    { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: "Neutral", badgeTone: toneP(b?.pct_above_20) },
+    { label: "% > 50d MA", value: fmtP(b?.pct_above_50), badge: wordP(b?.pct_above_50), badgeTone: toneP(b?.pct_above_50) },
+    { label: "% > 200d MA", value: fmtP(b?.pct_above_200), badge: wordP(b?.pct_above_200), badgeTone: toneP(b?.pct_above_200) },
+    { label: "% > 20d MA", value: fmtP(b?.pct_above_20), badge: wordP(b?.pct_above_20), badgeTone: toneP(b?.pct_above_20) },
     { label: "4%↑/↓ (S&P)", value: adValue, badge: ad == null ? "—" : ad > 1 ? "Positive" : ad < 1 ? "Negative" : "Flat", badgeTone: ad == null ? "gray" : ad > 1 ? "green" : ad < 1 ? "red" : "yellow" },
     { label: "New 52wk H/L (S&P)", value: b?.new_highs != null && b?.new_lows != null ? `${b.new_highs}/${b.new_lows}` : "—", badge: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "Highs dominate" : b.new_lows > b.new_highs ? "Lows dominate" : "Balanced") : "—", badgeTone: b?.new_highs != null && b?.new_lows != null ? (b.new_highs > b.new_lows ? "green" : b.new_lows > b.new_highs ? "red" : "gray") : "gray" },
   ];
@@ -356,7 +357,7 @@ export default function ShouldITrade() {
 
       {data.is_stale && (
         <div className="terminal-card border-accent-red p-3 text-accent-red font-mono text-xs">
-          ⚠ This verdict is from {data.snapshot_date}. The market has traded since (latest data {data.market_date}) — the engine may be behind; treat with caution.
+          ⚠ This verdict is from {data.snapshot_date}. The market has traded since (latest data {data.market_date ?? "—"}) — the engine may be behind; treat with caution.
         </div>
       )}
 
@@ -370,7 +371,7 @@ export default function ShouldITrade() {
             <div className="text-2xs text-text-dim mono mt-1.5">{mode === "swing" ? "Swing Trading" : "Day Trading"}</div>
           </div>
 
-          <div className="shrink-0"><Gauge value={Number(data.market_quality_score)} /></div>
+          <div className="shrink-0"><Gauge value={Number(data.market_quality_score)} yes={thr.yes} caution={thr.caution} /></div>
 
           <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 min-w-[180px]">
             <ScoreChip icon={ICONS.vol} name="VOLATILITY" score={data.vol_score} />

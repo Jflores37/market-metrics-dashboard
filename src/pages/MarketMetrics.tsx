@@ -83,7 +83,7 @@ function PinnedSITBanner() {
         </div>
         {data.is_stale ? (
           <div className="font-mono text-2xs text-accent-red font-semibold">
-            ⚠ STALE · {data.snapshot_date} (market {data.market_date})
+            ⚠ STALE · {data.snapshot_date} (market {data.market_date ?? "—"})
           </div>
         ) : (
           <div className="font-mono text-2xs text-text-dim">as of {data.snapshot_date}</div>
@@ -504,8 +504,8 @@ function MiniChartCard({ title, history, type, refLine }: { title: string; histo
             <BarChart data={data} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
               <ReferenceLine y={0} stroke={referenceLineStroke} strokeWidth={1} />
               <Bar dataKey="value">
-                {data.map((d, i) => (
-                  <Cell key={i} fill={d.value >= 0 ? chartColors.green : chartColors.red} />
+                {data.map((d) => (
+                  <Cell key={d.date} fill={d.value >= 0 ? chartColors.green : chartColors.red} />
                 ))}
               </Bar>
               <Tooltip

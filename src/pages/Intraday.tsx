@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { num, pct, usd, usdCompact, numCompact, colorClass, timeShort, dateLong } from "@/lib/format";
+import { num, pct, usd, usdCompact, colorClass, timeShort, dateLong } from "@/lib/format";
 import { TickerLink } from "@/components/TickerChartModal";
 
 // ===== Types =====
@@ -171,7 +171,7 @@ function PremarketSection({ rows }: { rows: PremarketRow[] }) {
             ▲ Up
           </div>
           <div className="space-y-0.5">
-            {ups.slice(0, 20).map((row) => (
+            {ups.map((row) => (
               <div
                 key={`up-${row.ticker}-${row.rank}`}
                 className="flex items-baseline justify-between text-xs font-mono py-0.5"
@@ -192,7 +192,7 @@ function PremarketSection({ rows }: { rows: PremarketRow[] }) {
             ▼ Down
           </div>
           <div className="space-y-0.5">
-            {downs.slice(0, 20).map((row) => (
+            {downs.map((row) => (
               <div
                 key={`down-${row.ticker}-${row.rank}`}
                 className="flex items-baseline justify-between text-xs font-mono py-0.5"

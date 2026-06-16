@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type TickerModalCtx = {
   open: (ticker: string) => void;
@@ -36,6 +36,16 @@ function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }
   const headerClass = "flex items-center justify-between px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-border bg-bg-panel";
   const openLinkClass = "font-mono text-2xs text-accent-cyan hover:text-text-primary transition-colors uppercase tracking-widest";
   const closeBtnClass = "inline-flex items-center justify-center min-w-[40px] min-h-[40px] -mr-2 text-text-dim hover:text-text-primary text-xl leading-none";
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
   return (
     <div className={backdropClass} onClick={onClose}>
       <div className={cardClass} onClick={(e) => e.stopPropagation()}>

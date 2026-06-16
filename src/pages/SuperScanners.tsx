@@ -309,7 +309,7 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
           <button
             onClick={refresh}
             aria-label="Refresh"
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
+            className="flex items-center justify-center gap-1 min-h-[32px] sm:min-h-0 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
           >
             <span className={refreshing ? "animate-spin inline-block" : "inline-block"}>↻</span>
             <span className="hidden sm:inline">Refresh</span>
@@ -432,7 +432,7 @@ function EarningsCard({ rows }: { rows: EarningsThisWeek[] }) {
           <button
             onClick={refresh}
             aria-label="Refresh"
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
+            className="flex items-center justify-center gap-1 min-h-[32px] sm:min-h-0 px-1.5 py-0.5 rounded-[2px] text-2xs text-text-secondary hover:text-accent-cyan hover:bg-bg-hover transition-colors uppercase tracking-widest font-mono"
           >
             <span className={refreshing ? "animate-spin inline-block" : "inline-block"}>↻</span>
             <span className="hidden sm:inline">Refresh</span>

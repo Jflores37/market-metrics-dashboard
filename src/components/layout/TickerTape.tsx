@@ -91,8 +91,13 @@ export default function TickerTape() {
   // (translateX -50% lands the second copy exactly where the first started).
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={paused}
+      aria-label="Pause ticker tape"
       className="group border-b border-border-subtle bg-bg-panel overflow-hidden cursor-pointer marquee-mask"
       onClick={() => setPaused((p) => !p)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPaused((p) => !p); } }}
     >
       <div className={`flex items-center py-2 pl-3 whitespace-nowrap animate-marquee w-max ${paused ? "[animation-play-state:paused]" : ""}`}>
         <TickerRow items={data} />

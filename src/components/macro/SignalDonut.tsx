@@ -12,7 +12,7 @@ const SIGNAL_HEX = {
   hawkish: chartColors.red,
   neutral: chartColors.textSecondary,
   dovish: chartColors.green,
-  tightening: chartColors.amber,
+  tightening: chartColors.yellow,
 };
 
 interface CustomTooltipProps {
@@ -99,8 +99,8 @@ export default function SignalDonut({
             stroke={chartColors.bg}
             strokeWidth={1.5}
           >
-            {data.map((entry, i) => (
-              <Cell key={i} fill={entry.color} />
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.color} />
             ))}
           </Pie>
           <Tooltip
