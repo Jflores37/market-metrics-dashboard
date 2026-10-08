@@ -62,3 +62,6 @@ npm run dev
 ```
 
 **Deploy** — push to `main`; Vercel auto-builds.
+
+### Credits
+Scanner definitions, table layouts, stage tags and the terminal colour palette follow [pakkiraju/Market-Metrics-](https://github.com/pakkiraju/Market-Metrics-) (`finviz-elite` branch). Credit to its author.
