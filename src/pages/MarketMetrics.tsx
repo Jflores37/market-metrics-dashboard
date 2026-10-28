@@ -19,7 +19,6 @@ import KeyMetricsGrid from "@/components/mm/KeyMetricsGrid";
 import { BreadthBars } from "@/components/mm/BreadthBars";
 import {
   LeadingIndustriesTable,
-  ThematicsByThemeTable,
   ThematicsBySectorTable,
   ThematicsTopMovers,
 } from "@/components/mm/IndustryThemeBlocks";
@@ -304,9 +303,13 @@ interface StageRow {
 
 const STAGE_DESC: Record<string, string> = {
   "1A": "Basing low", "1B": "Basing high",
-  "2A": "Early advance", "2B": "Mid advance", "2C": "Strong advance",
+  "2A": "Early advance · 0–5% > SMA50 (incl. SMA20 pullback)",
+  "2B": "Mid advance · 5–15% > SMA50",
+  "2C": "Strong advance · >15% > SMA50",
   "3A": "Distribution", "3B": "Topping",
-  "4A": "Early decline", "4B": "Mid decline", "4C": "Strong decline",
+  "4A": "Early decline · 0–5% < SMA50",
+  "4B": "Mid decline · 5–15% < SMA50",
+  "4C": "Strong decline · >15% < SMA50",
 };
 
 function stageColor(stage: string): { bar: string; text: string } {
@@ -665,7 +668,6 @@ export default function MarketMetrics() {
       <StockbeeMomentum50 />
 
       <LeadingIndustriesTable />
-      <ThematicsByThemeTable />
       <ThematicsBySectorTable />
       <ThematicsTopMovers />
 

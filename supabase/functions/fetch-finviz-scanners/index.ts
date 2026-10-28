@@ -10,17 +10,60 @@
 //
 // Dispatch: ?group=trend|perf|perf2|special|all (default trend)
 //           ?only=<scanner_id>   ?earnings=1
+//
+// v10 (2026-10-28 audit: edge-a-4/5/7/10):
+//  - cron-only: requires x-cron-secret (fail-closed).
+//  - every FinViz response is validated: an HTML body or a missing
+//    Ticker/Price/Change header THROWS (was: parsed=[] -> today's rows wiped,
+//    run 'ok'). A validated empty result (good header, 0 rows) is a real
+//    "no matches today".
+//  - replace is failure-safe: upsert the new rows stamped with this run's
+//    fetched_at, then delete only this scanner/date's rows older than the stamp
+//    (both errors checked). A failed write leaves the previous rows intact.
+//  - every scanner records one scanner_runs row (ok|error, fetched, inserted).
+//  - group status: ok / partial (some scanners or earnings failed) / error (all).
+//  - 20s per-request timeout, retried like a 429.
+//  - earnings: header validated; the stale future-row delete runs only when
+//    BOTH week pulls parsed rows, and its error is checked.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const CALL_DELAY_MS = 1500;
+const FETCH_TIMEOUT_MS = 20000;
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+function isTimeout(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+}
+
+// One FinViz GET with timeout; throws on non-200 or an HTML (login/error) page.
+// Errors whose message contains "429" or "timeout" are retryable by callers.
+async function finvizText(url: string): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (e) {
+    if (isTimeout(e)) throw new Error(`Finviz timeout after ${FETCH_TIMEOUT_MS}ms`);
+    throw e;
+  }
+  if (res.status === 429) { await res.body?.cancel(); throw new Error("Finviz 429"); }
+  if (!res.ok) { const b = await res.text(); throw new Error(`Finviz ${res.status}: ${b.slice(0, 200)}`); }
+  let text: string;
+  try {
+    text = await res.text();
+  } catch (e) {
+    if (isTimeout(e)) throw new Error(`Finviz timeout after ${FETCH_TIMEOUT_MS}ms`);
+    throw e;
+  }
+  if (text.trimStart().startsWith("<")) throw new Error("Finviz returned HTML instead of CSV (token expired?)");
+  return text;
+}
 
 async function getSecret(key: string): Promise<string> {
   const { data, error } = await supabase.rpc("get_secret", { p_name: key });
@@ -131,10 +174,7 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
   for (let i = 0; i < attempts.length; i++) {
     if (attempts[i] > 0) await sleep(attempts[i]);
     try {
-      const res = await fetch(url);
-      if (res.status === 429) { await res.body?.cancel(); lastErr = new Error(`Finviz 429 #${i + 1}`); continue; }
-      if (!res.ok) { const b = await res.text(); throw new Error(`Finviz ${res.status}: ${b.slice(0, 200)}`); }
-      const text = await res.text();
+      const text = await finvizText(url);
       const rows = parseCSV(text);
       if (rows.length < 1) throw new Error("Empty CSV");
       const headers = rows[0].map((h) => h.trim());
@@ -151,6 +191,9 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
         netMargin:  findCol(headers, ["Profit Margin", "Net Margin"]),
         shortFloat: findCol(headers, ["Short Float", "Float Short"]),
       };
+      // Validate the format: a changed/foreign CSV must never read as "0 matches".
+      const missing = (["ticker", "price", "change"] as const).filter((k) => idx[k] < 0);
+      if (missing.length) throw new Error(`Finviz CSV missing required columns: ${missing.join(", ")}`);
       const get = (row: string[], k: number) => k >= 0 ? row[k] : undefined;
       const parsed: ParsedRow[] = []; const seen = new Set<string>();
       for (let r = 1; r < rows.length; r++) {
@@ -177,7 +220,8 @@ async function finvizPull(refUrl: string, auth: string): Promise<ParsedRow[]> {
       return parsed;
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
-      if (!String(lastErr.message).includes("429")) break;
+      const m = String(lastErr.message);
+      if (!m.includes("429") && !m.includes("timeout")) break;
     }
   }
   throw lastErr ?? new Error("Finviz pull failed");
@@ -200,11 +244,33 @@ function toRecord(scannerId: string, snapshotDate: string, r: ParsedRow, rank: n
   };
 }
 
+// Failure-safe replace of one scanner's rows for snapshotDate: write first
+// (stamped with this run's fetched_at), then drop the rows this run didn't
+// write. If the upsert fails the previous rows stay intact; a 0-row validated
+// result clears the day's rows (a real "no matches today").
 async function upsertScanner(scannerId: string, snapshotDate: string, records: ReturnType<typeof toRecord>[]) {
-  await supabase.from("scanner_results").delete().eq("scanner_id", scannerId).eq("snapshot_date", snapshotDate);
-  if (records.length === 0) return;
-  const { error } = await supabase.from("scanner_results").insert(records);
-  if (error) throw error;
+  const runStamp = new Date().toISOString();
+  if (records.length > 0) {
+    const stamped = records.map((r) => ({ ...r, fetched_at: runStamp }));
+    const { error } = await supabase.from("scanner_results")
+      .upsert(stamped, { onConflict: "scanner_id,ticker,snapshot_date" });
+    if (error) throw new Error(`scanner_results upsert: ${error.message}`);
+  }
+  const { error: dErr } = await supabase.from("scanner_results").delete()
+    .eq("scanner_id", scannerId).eq("snapshot_date", snapshotDate).lt("fetched_at", runStamp);
+  if (dErr) throw new Error(`scanner_results stale-row delete: ${dErr.message}`);
+}
+
+// One scanner_runs row per scanner per run (db owns the table, see FIX_CONTRACT
+// §3.3). No error text here: that goes to job_runs only.
+async function recordScannerRun(
+  scannerId: string, snapshotDate: string, status: "ok" | "error", fetched: number, inserted: number,
+): Promise<string | null> {
+  const { error } = await supabase.from("scanner_runs").upsert({
+    scanner_id: scannerId, snapshot_date: snapshotDate, status, fetched, inserted,
+    finished_at: new Date().toISOString(),
+  }, { onConflict: "scanner_id,snapshot_date" });
+  return error ? error.message : null;
 }
 
 async function runSingle(scannerId: string, urlKey: string, auth: string, snap: string, stageTag: string | null = null) {
@@ -316,36 +382,49 @@ function parseEarningsDate(raw: string | null): { date: string | null; time: str
   return { date, time };
 }
 
-async function fetchEarnings(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number }> {
+async function fetchEarnings(auth: string): Promise<{ rows: Array<Record<string, unknown>>; raw: number; perFilter: number[] }> {
   // Pull this week AND next week so the rolling CURRENT_DATE..+7d window in
   // earnings_this_week_v always has the full week ahead -- thisweek alone leaves
   // the back half of that window empty once it's mid-week.
   const filters = ["earningsdate_thisweek", "earningsdate_nextweek"];
   const out: Array<Record<string, unknown>> = []; const seen = new Set<string>();
   let raw = 0;
+  const perFilter: number[] = [];
   for (let f = 0; f < filters.length; f++) {
     if (f > 0) await sleep(CALL_DELAY_MS);
     const url = `https://elite.finviz.com/export.ashx?v=161&f=${filters[f]},sh_avgvol_o1000,sh_price_o1&ft=4&o=-marketcap&c=1,68,6,65`;
-    const res = await fetch(`${url}&auth=${auth}`);
-    if (!res.ok) { await res.body?.cancel(); throw new Error(`Finviz earnings ${res.status}`); }
-    const rows = parseCSV(await res.text());
-    if (rows.length < 2) continue;
-    const hdr = rows[0].map((h) => h.trim());
+    // Same retry policy as finvizPull: 429 and timeouts are retried.
+    let text = "";
+    for (const wait of [0, 3000, 6000]) {
+      if (wait > 0) await sleep(wait);
+      try { text = await finvizText(`${url}&auth=${auth}`); break; }
+      catch (err) {
+        const m = err instanceof Error ? err.message : String(err);
+        if ((!m.includes("429") && !m.includes("timeout")) || wait === 6000) throw err;
+      }
+    }
+    const rows = parseCSV(text);
+    const hdr = rows.length ? rows[0].map((h) => h.trim()) : [];
     const tI = findCol(hdr, ["Ticker"]);
     const dI = findCol(hdr, ["Earnings Date"]);
-    raw += rows.length - 1;
+    if (tI < 0 || dI < 0) throw new Error(`Finviz earnings ${filters[f]}: missing Ticker/Earnings Date header`);
+    raw += Math.max(rows.length - 1, 0);
+    let parsed = 0;
     for (let r = 1; r < rows.length; r++) {
       const t = str(rows[r][tI]); if (!t) continue;
       const { date, time } = parseEarningsDate(str(rows[r][dI]));
       if (!date) continue;
+      parsed++;
       const key = `${t}|${date}`; if (seen.has(key)) continue; seen.add(key);
       out.push({ ticker: t, earnings_date: date, earnings_time: time, fetched_at: new Date().toISOString() });
     }
+    perFilter.push(parsed);
   }
-  return { rows: out, raw };
+  return { rows: out, raw, perFilter };
 }
 
 Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
   const url = new URL(req.url);
   const group = url.searchParams.get("group") ?? "trend";
@@ -356,22 +435,25 @@ Deno.serve(async (req: Request) => {
     .insert({ job_name: `fetch-finviz-scanners:${onlyId ?? group}`, status: "running" })
     .select("id").single();
   const jobId: number | null = jobRow?.id ?? null;
-  const finishJob = async (status: "ok" | "error", summary: Record<string, unknown> | null, error?: string) => {
+  const finishJob = async (status: "ok" | "partial" | "error", summary: Record<string, unknown> | null, error?: string) => {
     if (jobId == null) return;
     await supabase.from("job_runs").update({
       finished_at: new Date().toISOString(), status, elapsed_ms: Date.now() - started, summary, error: error ?? null,
     }).eq("id", jobId);
   };
 
+  let auth = "";
   try {
-    const auth = await getSecret("finviz_token");
-    const snap = new Date().toISOString().slice(0, 10);
+    auth = await getSecret("finviz_token");
+    // ET calendar date (UTC would stamp tomorrow on a run after 8 PM ET).
+    const snap = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     let ids: string[];
     if (onlyId) { if (!RUNNERS[onlyId]) throw new Error(`Unknown scanner id: ${onlyId}`); ids = [onlyId]; }
     else if (group === "all") ids = Object.keys(RUNNERS);
     else { if (!GROUPS[group]) throw new Error(`Unknown group: ${group}`); ids = GROUPS[group]; }
 
-    const summary: Record<string, { fetched: number; inserted: number; elapsed_ms: number; error?: string }> = {};
+    const summary: Record<string, { fetched: number; inserted: number; elapsed_ms: number; error?: string; runs_error?: string }> = {};
+    let runsWriteFailures = 0;
     for (let i = 0; i < ids.length; i++) {
       if (i > 0) await sleep(CALL_DELAY_MS);
       const t0 = Date.now();
@@ -381,6 +463,9 @@ Deno.serve(async (req: Request) => {
       } catch (err) {
         summary[ids[i]] = { fetched: 0, inserted: 0, elapsed_ms: Date.now() - t0, error: redact(err, auth) };
       }
+      const s = summary[ids[i]];
+      const rErr = await recordScannerRun(ids[i], snap, s.error ? "error" : "ok", s.fetched, s.inserted);
+      if (rErr) { s.runs_error = redact(rErr, auth); runsWriteFailures++; }
     }
 
     let earningsSummary: Record<string, unknown> | null = null;
@@ -388,29 +473,46 @@ Deno.serve(async (req: Request) => {
       await sleep(CALL_DELAY_MS);
       try {
         const e = await fetchEarnings(auth);
+        let staleDeleted = false;
         if (e.rows.length > 0) {
-          const today = new Date().toISOString().slice(0, 10);
+          const today = snap;
           const runStamp = new Date().toISOString();
           const rows = e.rows.map((r) => ({ ...r, fetched_at: runStamp }));
           // Write first: if this fails, the existing table is left intact.
           const { error } = await supabase.from("earnings_calendar").upsert(rows, { onConflict: "ticker,earnings_date" });
           if (error) throw error;
-          // Then drop only future rows this run did not refresh (delisted/moved).
-          await supabase.from("earnings_calendar").delete().gte("earnings_date", today).lt("fetched_at", runStamp);
+          // Then drop only future rows this run did not refresh (delisted/moved),
+          // and only when BOTH weeks parsed rows: one empty pull must never
+          // wipe that week's previously stored rows.
+          if (e.perFilter.length === 2 && e.perFilter.every((n) => n > 0)) {
+            const { error: dErr } = await supabase.from("earnings_calendar").delete()
+              .gte("earnings_date", today).lt("fetched_at", runStamp);
+            if (dErr) throw new Error(`earnings stale-row delete: ${dErr.message}`);
+            staleDeleted = true;
+          }
         }
-        earningsSummary = { fetched: e.raw, inserted: e.rows.length };
+        earningsSummary = { fetched: e.raw, inserted: e.rows.length, per_week: e.perFilter, stale_deleted: staleDeleted };
       } catch (err) { earningsSummary = { error: redact(err, auth) }; }
     }
 
+    const total = Object.keys(summary).length;
     const failed = Object.values(summary).filter((s) => s.error).length;
+    const earningsFailed = earningsSummary != null && "error" in earningsSummary;
+    const rowsWritten = Object.values(summary).reduce((n, s) => n + (s.error ? 0 : s.inserted), 0)
+      + (earningsSummary && typeof earningsSummary.inserted === "number" ? earningsSummary.inserted : 0);
     const full = { group: onlyId ? `only:${onlyId}` : group, snapshot_date: snap,
-      scanner_count: Object.keys(summary).length, scanners_ok: Object.keys(summary).length - failed,
-      scanners_failed: failed, scanners: summary, earnings: earningsSummary };
-    await finishJob(failed === 0 ? "ok" : "error", full);
-    return new Response(JSON.stringify({ ok: failed === 0, elapsed_ms: Date.now() - started, ...full }),
-      { headers: { "Content-Type": "application/json" } });
+      scanner_count: total, scanners_ok: total - failed,
+      scanners_failed: failed, scanners: summary, earnings: earningsSummary,
+      scanner_runs_write_failures: runsWriteFailures, rows_written: rowsWritten };
+    // error = every scanner failed; partial = some scanner, earnings, or a
+    // scanner_runs write failed; ok = everything succeeded (0-match scans included).
+    const status = total > 0 && failed === total ? "error"
+      : failed > 0 || earningsFailed || runsWriteFailures > 0 ? "partial" : "ok";
+    await finishJob(status, full, status === "error" ? "all scanners failed" : undefined);
+    return new Response(JSON.stringify({ ok: status === "ok", status, elapsed_ms: Date.now() - started, ...full }),
+      { status: status === "error" ? 500 : 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    const m = redact(err);
+    const m = redact(err, auth);
     await finishJob("error", null, m);
     return new Response(JSON.stringify({ ok: false, error: m, elapsed_ms: Date.now() - started }),
       { status: 500, headers: { "Content-Type": "application/json" } });

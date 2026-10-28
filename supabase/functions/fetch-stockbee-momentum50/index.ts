@@ -5,6 +5,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -55,7 +57,8 @@ function cleanTicker(raw: unknown): string | null {
   return s;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const startedAt = Date.now();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -74,7 +77,7 @@ Deno.serve(async (_req: Request) => {
   const jobId: number = jobRow.id;
 
   const finishJob = async (
-    status: "ok" | "error",
+    status: "ok" | "partial" | "error",
     summary: Record<string, unknown> | null,
     error?: string,
   ) => {
@@ -91,6 +94,11 @@ Deno.serve(async (_req: Request) => {
   };
 
   try {
+    // The most recent completed session; a sheet older than this is lagging
+    // (partial, lagging:true) and the morning catch-up cron retries it.
+    const { data: sessionDate, error: sdErr } = await supabase.rpc("market_session_date");
+    if (sdErr || !sessionDate) throw new Error(`market_session_date rpc failed: ${sdErr?.message ?? "null"}`);
+
     const resp = await fetch(SHEET_URL, {
       headers: { "User-Agent": "MarketMetrics/1.0 (Supabase Edge)" },
     });
@@ -171,22 +179,27 @@ Deno.serve(async (_req: Request) => {
     const latestDate = payload.map((p) => p.observation_date).sort().reverse()[0];
     const latestEntry = payload.find((p) => p.observation_date === latestDate)!;
 
+    const lagging = latestDate < (sessionDate as string);
     const summary = {
+      rows_written: payload.length,
       dates_upserted: payload.length,
+      lagging,
+      session_date: sessionDate,
       latest_date: latestDate,
       latest_ticker_count: latestEntry.tickers.length,
       latest_sample: latestEntry.tickers.slice(0, 10),
       total_tickers_seen: totalTickersSeen,
       dated_columns: datedCols,
     };
-    await finishJob("ok", summary);
+    const status = lagging ? "partial" : "ok";
+    await finishJob(status, summary, lagging ? `Sheet lagging: latest ${latestDate} < session ${sessionDate}` : undefined);
 
-    return new Response(JSON.stringify({ ok: true, ...summary }), {
+    return new Response(JSON.stringify({ ok: true, status, ...summary }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await finishJob("error", null, errMsg);
+    const errMsg = redact(err);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

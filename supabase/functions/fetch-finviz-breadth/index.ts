@@ -5,10 +5,24 @@
 //  - the 4 index-membership pulls are now sequential with spacing instead of
 //    a concurrent Promise.all burst (the concurrent burst tripped 429s).
 // Pair with the cron change moving this job off the scanner FinViz burst.
+// v8 (2026-10-28 audit: edge-a-2/4/5/7, ops-security-live-8):
+//  - cron-only: requires x-cron-secret (fail-closed).
+//  - every FinViz response is validated (HTML body / no Ticker header throws);
+//    an index-membership pull failure or a set under its floor fails the run
+//    before anything is written (was: swallowed -> in_sp500=false for all).
+//  - main universe < 5000 rows is an error.
+//  - 20s per-request timeout, retried like a 429.
+//  - on error after the equities upsert started, the rows this run wrote for
+//    snapshot_date are deleted (only when the date had no rows before the run,
+//    so a re-run never destroys an earlier good snapshot).
+//  - FinViz exports no SMA10 / 20-day high / 20-day low column, so those are
+//    written as NULL (breadth new_20day_* = NULL, not a fake 0). Any OTHER
+//    missing optional header makes the run 'partial'.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -21,6 +35,11 @@ const WIDE_COLS = Array.from({ length: 150 }, (_, i) => i + 1).join(",");
 // Loosened filter for fuller universe coverage. Russell 2000 has many sub-1M
 // vol components that need to be included for accurate breadth counts.
 const FILTER = "sh_avgvol_o100";
+
+// Minimum plausible sizes; anything below means a bad/partial FinViz response.
+const MAIN_FLOOR = 5000;
+const INDEX_FLOORS = { sp500: 480, nq100: 95, djia: 28, rut: 1500 } as const;
+const FETCH_TIMEOUT_MS = 20000;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -95,46 +114,58 @@ function findCol(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function isTimeout(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+}
+
 async function finvizCSV(filters: string, cols: string, auth: string): Promise<string> {
   const url = `https://elite.finviz.com/export.ashx?v=152&f=${filters}&c=${cols}&auth=${auth}`;
   const backoff = [0, 3000, 6000, 12000];
   let lastErr: Error | null = null;
   for (let i = 0; i < backoff.length; i++) {
     if (backoff[i] > 0) await sleep(backoff[i]);
-    const res = await fetch(url);
-    if (res.status === 429) {
-      await res.body?.cancel();
-      lastErr = new Error(`Finviz 429 (attempt ${i + 1}/${backoff.length})`);
+    let text: string;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (res.status === 429) {
+        await res.body?.cancel();
+        lastErr = new Error(`Finviz 429 (attempt ${i + 1}/${backoff.length})`);
+        continue;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Finviz ${res.status}: ${body.slice(0, 300)}`);
+      }
+      text = await res.text();
+    } catch (e) {
+      if (!isTimeout(e)) throw e;
+      lastErr = new Error(`Finviz timeout after ${FETCH_TIMEOUT_MS}ms (attempt ${i + 1}/${backoff.length})`);
       continue;
     }
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Finviz ${res.status}: ${body.slice(0, 300)}`);
-    }
-    return res.text();
+    // A login/error page comes back as 200 HTML: never treat it as data.
+    if (text.trimStart().startsWith("<")) throw new Error("Finviz returned HTML instead of CSV (token expired?)");
+    return text;
   }
   throw lastErr ?? new Error("Finviz pull failed after retries");
 }
 
+// Throws on any failure or bad response (was: swallowed into an empty Set,
+// which silently marked every ticker in_sp500=false). Caller checks the floor.
 async function fetchIndexTickers(filter: string, auth: string): Promise<Set<string>> {
-  try {
-    const csv = await finvizCSV(filter, "1", auth);
-    const rows = parseCSV(csv);
-    const out = new Set<string>();
-    if (rows.length < 2) return out;
-    const tIdx = rows[0].findIndex((h) => h.trim() === "Ticker");
-    if (tIdx < 0) return out;
-    for (let r = 1; r < rows.length; r++) {
-      const t = str(rows[r][tIdx]);
-      if (t) out.add(t);
-    }
-    return out;
-  } catch {
-    return new Set<string>();
+  const csv = await finvizCSV(filter, "1", auth);
+  const rows = parseCSV(csv);
+  const out = new Set<string>();
+  const tIdx = rows.length ? rows[0].findIndex((h) => h.trim() === "Ticker") : -1;
+  if (tIdx < 0) throw new Error(`Index pull ${filter}: no Ticker header`);
+  for (let r = 1; r < rows.length; r++) {
+    const t = str(rows[r][tIdx]);
+    if (t) out.add(t);
   }
+  return out;
 }
 
 Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
   const url = new URL(req.url);
   const debug = url.searchParams.get("debug") === "1";
@@ -147,7 +178,7 @@ Deno.serve(async (req: Request) => {
   const jobId: number | null = jobRow?.id ?? null;
 
   const finishJob = async (
-    status: "ok" | "error",
+    status: "ok" | "partial" | "error",
     summary: Record<string, unknown> | null,
     error?: string,
   ) => {
@@ -164,8 +195,11 @@ Deno.serve(async (req: Request) => {
       .eq("id", jobId);
   };
 
+  let auth = "";
+  // Set once the equities upsert starts; used to undo a half-written snapshot.
+  let cleanupDate: string | null = null;
   try {
-    const auth = await getSecret("finviz_token");
+    auth = await getSecret("finviz_token");
 
     // Sequential with spacing — a concurrent Promise.all burst tripped 429s.
     const sp500Set = await fetchIndexTickers("idx_sp500", auth);
@@ -177,9 +211,15 @@ Deno.serve(async (req: Request) => {
     const rutSet = await fetchIndexTickers("idx_rut", auth);
     await sleep(1200);
 
+    const indexCounts = { sp500: sp500Set.size, nq100: nq100Set.size, djia: djiaSet.size, rut: rutSet.size };
+    const underFloor = (Object.keys(INDEX_FLOORS) as (keyof typeof INDEX_FLOORS)[])
+      .filter((k) => indexCounts[k] < INDEX_FLOORS[k])
+      .map((k) => `${k}=${indexCounts[k]}<${INDEX_FLOORS[k]}`);
+    if (underFloor.length) throw new Error(`Index membership under floor: ${underFloor.join(", ")}`);
+
     const dataCsv = await finvizCSV(FILTER, WIDE_COLS, auth);
     const rows = parseCSV(dataCsv);
-    if (rows.length < 2) throw new Error(`Main pull returned only ${rows.length} rows`);
+    if (rows.length - 1 < MAIN_FLOOR) throw new Error(`Main pull returned only ${rows.length - 1} rows (< ${MAIN_FLOOR})`);
     const headers = rows[0];
 
     const idx = {
@@ -200,12 +240,9 @@ Deno.serve(async (req: Request) => {
       perfHalf:    findCol(headers, ["Performance (Half Year)"]),
       perfYear:    findCol(headers, ["Performance (Year)"]),
       perfYTD:     findCol(headers, ["Performance (YTD)"]),
-      sma10:       findCol(headers, ["10-Day Simple Moving Average"]),
       sma20:       findCol(headers, ["20-Day Simple Moving Average"]),
       sma50:       findCol(headers, ["50-Day Simple Moving Average"]),
       sma200:      findCol(headers, ["200-Day Simple Moving Average"]),
-      high20d:     findCol(headers, ["20-Day High"]),
-      low20d:      findCol(headers, ["20-Day Low"]),
       high52w:     findCol(headers, ["52-Week High"]),
       low52w:      findCol(headers, ["52-Week Low"]),
       atr:         findCol(headers, ["Average True Range"]),
@@ -215,7 +252,7 @@ Deno.serve(async (req: Request) => {
     };
 
     if (debug) {
-      await finishJob("ok", { mode: "debug", main_rows: rows.length - 1 });
+      await finishJob("ok", { mode: "debug", main_rows: rows.length - 1, rows_written: 0 });
       return new Response(
         JSON.stringify({
           ok: true,
@@ -235,7 +272,16 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Missing required Finviz columns: ${missing.join(", ")}`);
     }
 
-    const snapshotDate = new Date().toISOString().slice(0, 10);
+    // ET calendar date (UTC would stamp tomorrow on a run after 8 PM ET).
+    const snapshotDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+    // Did this date already have a snapshot (e.g. an earlier good run)? If so,
+    // never delete on failure: an overwrite with newer rows is still valid data.
+    const { count: preCount, error: pcErr } = await supabase
+      .from("equities_snapshot")
+      .select("ticker", { count: "exact", head: true })
+      .eq("snapshot_date", snapshotDate);
+    if (pcErr) throw pcErr;
     const records: Record<string, unknown>[] = [];
     const seen = new Set<string>();
 
@@ -254,10 +300,9 @@ Deno.serve(async (req: Request) => {
       const cap1bPlus = mcap != null && mcap >= 1000;
       const perfDay = pct(row[idx.change]);
 
-      const high20dPct = idx.high20d >= 0 ? pct(row[idx.high20d]) : null;
-      const low20dPct = idx.low20d >= 0 ? pct(row[idx.low20d]) : null;
-      const new20dHigh = high20dPct != null ? high20dPct >= 0 : null;
-      const new20dLow = low20dPct != null ? low20dPct <= 0 : null;
+      // FinViz exports no 20-day high/low column: unknown (NULL), not false.
+      const new20dHigh: boolean | null = null;
+      const new20dLow: boolean | null = null;
 
       const up4pct = perfDay != null ? perfDay >= 4 : null;
       const down4pct = perfDay != null ? perfDay <= -4 : null;
@@ -298,7 +343,7 @@ Deno.serve(async (req: Request) => {
         perf_half: idx.perfHalf >= 0 ? pct(row[idx.perfHalf]) : null,
         perf_year: idx.perfYear >= 0 ? pct(row[idx.perfYear]) : null,
         perf_ytd: idx.perfYTD >= 0 ? pct(row[idx.perfYTD]) : null,
-        sma10_pct: idx.sma10 >= 0 ? pct(row[idx.sma10]) : null,
+        sma10_pct: null, // not a FinViz export column; equity_ma10_latest_v computes SMA10
         sma20_pct: idx.sma20 >= 0 ? pct(row[idx.sma20]) : null,
         sma50_pct: idx.sma50 >= 0 ? pct(row[idx.sma50]) : null,
         sma200_pct: idx.sma200 >= 0 ? pct(row[idx.sma200]) : null,
@@ -318,6 +363,7 @@ Deno.serve(async (req: Request) => {
 
     const CHUNK = 500;
     let upserted = 0;
+    if ((preCount ?? 0) === 0) cleanupDate = snapshotDate;
     for (let i = 0; i < records.length; i += CHUNK) {
       const slice = records.slice(i, i + CHUNK);
       const { error: uErr } = await supabase
@@ -355,8 +401,10 @@ Deno.serve(async (req: Request) => {
       ).length;
       const new52H = subset.filter((r) => (numVal(r, "high52w_pct") ?? -1) >= 0).length;
       const new52L = subset.filter((r) => (numVal(r, "low52w_pct") ?? 1) <= 0).length;
-      const new20H = subset.filter((r) => r.new_20day_high === true).length;
-      const new20L = subset.filter((r) => r.new_20day_low === true).length;
+      // NULL when no row carries the flag (column not exported), never a fake 0.
+      const has20 = subset.some((r) => r.new_20day_high != null);
+      const new20H = has20 ? subset.filter((r) => r.new_20day_high === true).length : null;
+      const new20L = has20 ? subset.filter((r) => r.new_20day_low === true).length : null;
       const up4 = subset.filter((r) => r.up_4pct === true).length;
       const down4 = subset.filter((r) => r.down_4pct === true).length;
 
@@ -386,6 +434,7 @@ Deno.serve(async (req: Request) => {
         .upsert(breadthRows, { onConflict: "snapshot_date,universe_id" });
       if (bErr) throw new Error(`Breadth history upsert: ${bErr.message}`);
     }
+    cleanupDate = null; // fully written: nothing to undo from here on
 
     const headersMissing = Object.entries(idx)
       .filter(([, v]) => v < 0)
@@ -405,14 +454,19 @@ Deno.serve(async (req: Request) => {
         return m;
       }, {}),
       headers_missing: headersMissing,
+      rows_written: upserted + breadthRows.length,
     };
-    await finishJob("ok", summary);
+    await finishJob(headersMissing.length ? "partial" : "ok", summary);
 
     return new Response(JSON.stringify({ ok: true, ...summary }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = redact(err);
+    let errMsg = redact(err, auth);
+    if (cleanupDate) {
+      const { error: dErr } = await supabase.from("equities_snapshot").delete().eq("snapshot_date", cleanupDate);
+      errMsg += dErr ? ` | cleanup failed: ${redact(dErr.message, auth)}` : " | partial equities_snapshot rows removed";
+    }
     await finishJob("error", null, errMsg);
     return new Response(
       JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }),

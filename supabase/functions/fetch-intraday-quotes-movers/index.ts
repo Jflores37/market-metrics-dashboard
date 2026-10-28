@@ -5,10 +5,15 @@
 // premarket window. FIX: fetch premarket_up/down ONLY between 04:00-09:30 ET; the
 // morning's batch then persists for display through the session (24h prune). Lean
 // columns restored.
+// 2026-10-28: x-cron-secret auth; Finviz responses are validated (HTML/login
+// page, missing Ticker/Price/Change header => the screen throws, edge-b-05);
+// status ok | partial (some screens errored) | error (all screens or all quotes
+// failed); the 11 sector SPDRs are quoted so the ticker tape is live (sit-07).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,6 +27,13 @@ const QUOTE_SYMBOLS: Array<{ symbol: string; label: string }> = [
   { symbol: "^VIX", label: "VIX" }, { symbol: "GLD", label: "GLD" },
   { symbol: "TLT", label: "TLT" }, { symbol: "MSTR", label: "MSTR" },
   { symbol: "NVDA", label: "NVDA" }, { symbol: "TSLA", label: "TSLA" },
+  // Sector SPDRs (TickerTape prefers these over sector_etf_latest_v's EOD row)
+  { symbol: "XLK", label: "XLK" }, { symbol: "XLV", label: "XLV" },
+  { symbol: "XLC", label: "XLC" }, { symbol: "XLY", label: "XLY" },
+  { symbol: "XLU", label: "XLU" }, { symbol: "XLI", label: "XLI" },
+  { symbol: "XLE", label: "XLE" }, { symbol: "XLRE", label: "XLRE" },
+  { symbol: "XLF", label: "XLF" }, { symbol: "XLB", label: "XLB" },
+  { symbol: "XLP", label: "XLP" },
 ];
 
 // Lean set; resolved by header so exact numbering doesn't matter.
@@ -100,13 +112,19 @@ async function fetchFinvizMovers(filter: string, sort: string, auth: string): Pr
   const url = `https://elite.finviz.com/export.ashx?v=152&f=${filter}&o=${sort}&c=${MOVER_COLS}&auth=${auth}`;
   const resp = await fetch(url);
   if (!resp.ok) { const body = await resp.text(); throw new Error(`Finviz ${resp.status}: ${body.slice(0, 200)}`); }
-  const rows = parseCSV(await resp.text());
-  if (rows.length < 2) return [];
+  const text = await resp.text();
+  // An expired token / login page comes back 200 as HTML: never treat it as "0 rows".
+  if (text.trimStart().startsWith("<")) throw new Error(`Finviz returned HTML, not CSV (token expired or login page?)`);
+  const rows = parseCSV(text);
+  if (rows.length === 0) throw new Error("Finviz returned an empty body (no CSV header)");
   const headers = rows[0];
   const idx = {
     ticker: findCol(headers, ["Ticker"]), company: findCol(headers, ["Company"]), sector: findCol(headers, ["Sector"]),
     relVol: findCol(headers, ["Relative Volume"]), price: findCol(headers, ["Price"]), change: findCol(headers, ["Change"]), volume: findCol(headers, ["Volume"]),
   };
+  if (idx.ticker < 0) throw new Error(`Finviz CSV has no Ticker column (header: ${headers.slice(0, 5).join("|").slice(0, 120)})`);
+  const missing = (["price", "change"] as const).filter((k) => idx[k] < 0);
+  if (missing.length > 0) throw new Error(`Finviz CSV missing column(s): ${missing.join(", ")}`);
   const out: Array<Record<string, unknown>> = [];
   const limit = Math.min(rows.length - 1, TOP_N);
   for (let r = 1; r <= limit; r++) {
@@ -118,11 +136,12 @@ async function fetchFinvizMovers(filter: string, sort: string, auth: string): Pr
   return out;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
   const { data: jobRow } = await supabase.from("job_runs").insert({ job_name: "fetch-intraday-quotes-movers", status: "running" }).select("id").single();
   const jobId: number | null = jobRow?.id ?? null;
-  const finishJob = async (status: "ok" | "error", summary: Record<string, unknown> | null, error?: string) => {
+  const finishJob = async (status: "ok" | "partial" | "error", summary: Record<string, unknown> | null, error?: string) => {
     if (jobId == null) return;
     await supabase.from("job_runs").update({ finished_at: new Date().toISOString(), status, elapsed_ms: Date.now() - started, summary, error: error ?? null }).eq("id", jobId);
   };
@@ -148,6 +167,7 @@ Deno.serve(async (_req: Request) => {
       const changePct = data.prevClose != null && data.prevClose > 0 ? ((data.price - data.prevClose) / data.prevClose) * 100 : null;
       quoteRows.push({ ticker: q.symbol, display_label: q.label, fetched_at: fetchedAt, price: data.price, prev_close: data.prevClose, change_abs: changeAbs, change_pct: changePct });
     }
+    if (quoteRows.length === 0) throw new Error(`All ${QUOTE_SYMBOLS.length} Yahoo quotes failed`);
     if (quoteRows.length > 0) { const { error: qErr } = await supabase.from("intraday_quotes").insert(quoteRows); if (qErr) throw new Error(`Quote insert: ${qErr.message}`); }
 
     const moverInserts: Array<Record<string, unknown>> = [];
@@ -163,12 +183,16 @@ Deno.serve(async (_req: Request) => {
     await supabase.from("intraday_quotes").delete().lt("fetched_at", cutoff);
     await supabase.from("intraday_movers").delete().lt("fetched_at", cutoff);
 
-    const summary = { fetched_at: fetchedAt, premarket_window: preWindow, quotes_ok: quotesOk, mover_inserts: moverInserts.length, movers: moverSummary };
-    await finishJob("ok", summary);
-    return new Response(JSON.stringify({ ok: true, ...summary }), { headers: { "Content-Type": "application/json" } });
+    // Quotes are still written when screens fail (the tape stays live), but the
+    // run is error when every attempted screen failed, partial when some did.
+    const screensFailed = moverResults.filter((r) => r.error).length;
+    const status: "ok" | "partial" | "error" = screensFailed === 0 ? "ok" : screensFailed === moverResults.length ? "error" : "partial";
+    const summary = { rows_written: quoteRows.length + moverInserts.length, fetched_at: fetchedAt, premarket_window: preWindow, quotes_ok: quotesOk, quotes_total: QUOTE_SYMBOLS.length, mover_inserts: moverInserts.length, screens_failed: screensFailed, movers: moverSummary };
+    await finishJob(status, summary, screensFailed > 0 ? `${screensFailed}/${moverResults.length} Finviz screens failed` : undefined);
+    return new Response(JSON.stringify({ ok: status === "ok", status, ...summary }), { status: status === "error" ? 500 : 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
     const errMsg = redact(err);
-    await finishJob("error", null, errMsg);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });

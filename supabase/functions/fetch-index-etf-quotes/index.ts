@@ -5,6 +5,8 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -87,7 +89,8 @@ function computeRSI14(closes: number[]): Array<number | null> {
   return out;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const startedAt = Date.now();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -105,7 +108,7 @@ Deno.serve(async (_req: Request) => {
   const jobId: number = jobRow.id;
 
   const finishJob = async (
-    status: "ok" | "error",
+    status: "ok" | "partial" | "error",
     summary: Record<string, unknown> | null,
     error?: string,
   ) => {
@@ -170,18 +173,22 @@ Deno.serve(async (_req: Request) => {
       .upsert(allRows, { onConflict: "ticker,observation_date" });
     if (upErr) throw new Error(`Upsert failed: ${upErr.message}`);
 
+    // 0 rows is an error (thrown above); a ticker with no bars makes it partial.
+    const missing = SYMBOLS.filter((s) => (perTickerSummary[s] as { error?: string } | undefined)?.error);
+    const status = missing.length > 0 ? "partial" : "ok";
     const summary = {
+      rows_written: allRows.length,
       total_rows_upserted: allRows.length,
       per_ticker: perTickerSummary,
     };
-    await finishJob("ok", summary);
+    await finishJob(status, summary, missing.length > 0 ? `No bars for ${missing.join(", ")}` : undefined);
 
-    return new Response(JSON.stringify({ ok: true, ...summary }), {
+    return new Response(JSON.stringify({ ok: true, status, ...summary }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await finishJob("error", null, errMsg);
+    const errMsg = redact(err);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

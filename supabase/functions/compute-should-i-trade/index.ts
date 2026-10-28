@@ -2,9 +2,23 @@
 // 1:1 port of should_i_trade_scoring.py + should_i_trade_data.py to TypeScript.
 // Reads from the Supabase tables populated by Phase 2 fetchers and writes a
 // scoring snapshot per (snapshot_date, mode) to should_i_trade_history.
+//
+// 2026-10-28 audit (edge-a-3/5/8/9):
+//  - cron-only: requires x-cron-secret (fail-closed).
+//  - every input query checks `error` and throws (was: silently fell back).
+//  - snapshot_date = rpc market_session_date() (latest COMPLETED NYSE session),
+//    never the wall clock: no holiday/weekend rows, a Saturday catch-up
+//    writes Friday's row.
+//  - raw_inputs.input_dates records each input's latest date; inputs_as_of =
+//    least(vix, index_etf, breadth, sectors) (the critical inputs). The run is
+//    'partial' when inputs_as_of < snapshot_date or a critical input is absent.
+//  - sector query bounded to 14 days; 10y-trend compare rounded to cents
+//    before the 0.15 test; NH>NL bonus also applies when NL = 0.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -85,7 +99,7 @@ function scoreBreadthCat(pct200: number|null, r5: number|null, nh: number|null, 
     else if (r5 > 1.0) base += 5;
     else if (r5 < 0.8) base -= 15;
   }
-  if (nh != null && nl != null && nl > 0 && nh > nl) base += 5;
+  if (nh != null && nl != null && nh > nl) base += 5;
   const score = clamp(base);
   return { score: round1(score), interpretation: bucket3(score, "weakening") };
 }
@@ -106,7 +120,8 @@ function scoreMomentumCat(spread: number|null, pctHH: number|null) {
 
 function scoreMacroCat(tnxTrend: number|null) {
   let base = 70;
-  if (tnxTrend != null && Math.abs(tnxTrend) > 0.15) base -= 5;
+  // Round to cents first: 5 - 5.15 = -0.15000000000000036 in floating point.
+  if (tnxTrend != null && Math.abs(Math.round(tnxTrend * 100) / 100) > 0.15) base -= 5;
   const score = clamp(base);
   return { score: round1(score), interpretation: bucket3(score, "weakening") };
 }
@@ -209,13 +224,26 @@ function scoreExecWindow(
   };
 }
 
+// Every input query goes through this: a query error must fail the run, never
+// quietly degrade to old rows or the 50 default.
+function check<T>(label: string, res: { data: T | null; error: { message: string } | null }): T | null {
+  if (res.error) throw new Error(`${label} query failed: ${res.error.message}`);
+  return res.data;
+}
+
+// Earliest of the given YYYY-MM-DD dates (null entries ignored).
+function minDate(...ds: Array<string | null | undefined>): string | null {
+  const v = ds.filter((d): d is string => typeof d === "string" && d.length >= 10).sort();
+  return v.length ? v[0] : null;
+}
+
 async function fetchVixBlock() {
-  const { data: rows } = await supabase
+  const rows = check("vix_history", await supabase
     .from("vix_history")
     .select("observation_date,vix_close,vvix_close")
     .order("observation_date", { ascending: false })
-    .limit(252);
-  if (!rows || rows.length === 0) return { vix: null, vix_5d_slope: null, vvix: null, vix_1y_pct: null };
+    .limit(252));
+  if (!rows || rows.length === 0) return { vix: null, vix_5d_slope: null, vvix: null, vix_1y_pct: null, as_of: null as string | null };
 
   const sorted = [...rows].sort((a,b) => a.observation_date < b.observation_date ? -1 : 1);
   const closes = sorted.map(r => Number(r.vix_close)).filter(Number.isFinite);
@@ -239,16 +267,16 @@ async function fetchVixBlock() {
     pct = (below / yearCloses.length) * 100;
   }
 
-  return { vix, vix_5d_slope: slope, vvix, vix_1y_pct: pct };
+  return { vix, vix_5d_slope: slope, vvix, vix_1y_pct: pct, as_of: sorted[sorted.length - 1].observation_date as string | null };
 }
 
 async function fetchTrendBlock() {
-  const { data } = await supabase
+  const data = check("index_etf_quotes", await supabase
     .from("index_etf_quotes")
     .select("ticker,observation_date,close,sma20,sma50,sma200,rsi14")
     .in("ticker", ["SPY", "QQQ"])
     .order("observation_date", { ascending: false })
-    .limit(20);
+    .limit(20));
   const spy = (data ?? []).find(r => r.ticker === "SPY");
   const qqq = (data ?? []).find(r => r.ticker === "QQQ");
 
@@ -272,23 +300,25 @@ async function fetchTrendBlock() {
     qqq_price: qqqPrice, qqq_sma50: qqqS50,
     qqq_above_50: above(qqqPrice, qqqS50),
     regime,
+    // Both ETFs feed the score, so the block is only as fresh as the older one.
+    as_of: spy && qqq ? minDate(spy.observation_date, qqq.observation_date) : null,
   };
 }
 
 async function buildBreadth() {
-  const { data: latest } = await supabase
+  const latest = check("breadth_daily_history", await supabase
     .from("breadth_daily_history")
     .select("*")
     .order("snapshot_date", { ascending: false })
-    .limit(20);
+    .limit(20));
   const sp = (latest ?? []).find(r => r.universe_id === "sp500");
   const cap1b = (latest ?? []).find(r => r.universe_id === "cap1b_plus");
 
-  const { data: sb } = await supabase
+  const sb = check("stockbee_breadth_raw", await supabase
     .from("stockbee_breadth_raw")
     .select("observation_date,ratio5,ratio10,up_4pct,down_4pct")
     .order("observation_date", { ascending: false })
-    .limit(1);
+    .limit(1));
   const sbRow = sb && sb[0];
 
   const u1b: UB = {
@@ -299,7 +329,7 @@ async function buildBreadth() {
   };
   if (cap1b && cap1b.total_count > 0) {
     // Finviz exports no 20-day high/low column, so new_20day_* in breadth_daily_history
-    // is permanently 0. Use the real, populated 52-week new-high/low counts instead.
+    // is NULL. Use the real, populated 52-week new-high/low counts instead.
     if (cap1b.new_52w_highs != null) u1b.pct_new_highs = (Number(cap1b.new_52w_highs)/Number(cap1b.total_count))*100;
     if (cap1b.new_52w_lows  != null) u1b.pct_new_lows  = (Number(cap1b.new_52w_lows) /Number(cap1b.total_count))*100;
     if (cap1b.up_4pct != null) u1b.pct_up4_of_universe = (Number(cap1b.up_4pct)/Number(cap1b.total_count))*100;
@@ -319,15 +349,21 @@ async function buildBreadth() {
     new_highs: sp && sp.new_52w_highs != null ? Number(sp.new_52w_highs) : null,
     new_lows:  sp && sp.new_52w_lows  != null ? Number(sp.new_52w_lows)  : null,
     universe_1b: u1b,
+    // sp500 + cap1b_plus both feed the score; stockbee is tracked separately.
+    as_of: sp && cap1b ? minDate(sp.snapshot_date, cap1b.snapshot_date) : null,
+    stockbee_as_of: sbRow ? (sbRow.observation_date as string) : null,
   };
 }
 
 async function buildMomentum() {
-  const { data: sectors } = await supabase
+  // Bounded window (was: the whole table): the latest date is all we use.
+  const since = new Date(Date.now() - 14 * 86400000).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const sectors = check("sector_etf_snapshot", await supabase
     .from("sector_etf_snapshot")
     .select("ticker,sector_label,perf_day,snapshot_date")
     .in("ticker", SECTOR_SPDRS)
-    .order("snapshot_date", { ascending: false });
+    .gte("snapshot_date", since)
+    .order("snapshot_date", { ascending: false }));
   const latestDate = sectors && sectors[0] ? sectors[0].snapshot_date : null;
   const todaysSectors = (sectors ?? [])
     .filter(s => s.snapshot_date === latestDate)
@@ -343,28 +379,30 @@ async function buildMomentum() {
     spread = Math.round((topAvg - botAvg) * 100) / 100;
   }
 
-  const { data: sp500Row } = await supabase
+  const sp500Row = check("breadth_daily_history(sp500)", await supabase
     .from("breadth_daily_history")
     .select("new_52w_highs,total_count")
     .eq("universe_id", "sp500")
     .order("snapshot_date", { ascending: false })
-    .limit(1);
+    .limit(1));
   let pctHH: number | null = null;
   if (sp500Row && sp500Row[0] && sp500Row[0].total_count > 0 && sp500Row[0].new_52w_highs != null) {
     pctHH = Math.round((Number(sp500Row[0].new_52w_highs)/Number(sp500Row[0].total_count))*100*10)/10;
   }
 
-  return { sectors: todaysSectors, top3, bottom3, spread, pct_higher_highs: pctHH };
+  // Only a full set of sector SPDRs counts as a usable sectors input.
+  const asOf = todaysSectors.length === SECTOR_SPDRS.length ? (latestDate as string) : null;
+  return { sectors: todaysSectors, top3, bottom3, spread, pct_higher_highs: pctHH, as_of: asOf };
 }
 
 async function buildMacro() {
-  const { data: tnx } = await supabase
+  const tnx = check("macro_observations(DGS10)", await supabase
     .from("macro_observations")
     .select("observation_date,value")
     .eq("series_id", "DGS10")
     .order("observation_date", { ascending: false })
-    .limit(10);
-  if (!tnx || tnx.length < 2) return { tnx: null, tnx_5d_trend: null };
+    .limit(10));
+  if (!tnx || tnx.length < 2) return { tnx: null, tnx_5d_trend: null, as_of: null as string | null };
   const latest = Number(tnx[0].value);
   const cutoff = new Date(tnx[0].observation_date as string);
   cutoff.setDate(cutoff.getDate() - 7);
@@ -375,7 +413,7 @@ async function buildMacro() {
   }
   if (prev == null) prev = Number(tnx[tnx.length - 1].value);
   const trend = Number.isFinite(latest) && Number.isFinite(prev) ? latest - prev : null;
-  return { tnx: latest, tnx_5d_trend: trend };
+  return { tnx: latest, tnx_5d_trend: trend, as_of: tnx[0].observation_date as string | null };
 }
 
 function buildNarrative(args: {
@@ -416,7 +454,8 @@ function buildNarrative(args: {
   return { text, suggested_action: suggested };
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
   const { data: jobRow } = await supabase
     .from("job_runs")
@@ -424,7 +463,7 @@ Deno.serve(async (_req: Request) => {
     .select("id").single();
   const jobId: number | null = jobRow?.id ?? null;
 
-  const finishJob = async (status: "ok"|"error", summary: Record<string, unknown>|null, error?: string) => {
+  const finishJob = async (status: "ok"|"partial"|"error", summary: Record<string, unknown>|null, error?: string) => {
     if (jobId == null) return;
     await supabase.from("job_runs").update({
       finished_at: new Date().toISOString(),
@@ -437,7 +476,23 @@ Deno.serve(async (_req: Request) => {
       fetchVixBlock(), fetchTrendBlock(), buildBreadth(), buildMomentum(), buildMacro(),
     ]);
 
-    const snapshotDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    // Key the row on the latest completed NYSE session (db calendar), not the
+    // wall clock, so holidays/weekends never get a row of their own.
+    const { data: sessionDate, error: sdErr } = await supabase.rpc("market_session_date");
+    if (sdErr || typeof sessionDate !== "string") {
+      throw new Error(`market_session_date rpc failed: ${sdErr?.message ?? "no date returned"}`);
+    }
+    const snapshotDate = sessionDate.slice(0, 10);
+
+    const inputDates = {
+      vix: vol.as_of, index_etf: trend.as_of, breadth: breadth.as_of, sectors: momentum.as_of,
+      stockbee: breadth.stockbee_as_of, macro: macro.as_of,
+    };
+    const critical = [inputDates.vix, inputDates.index_etf, inputDates.breadth, inputDates.sectors];
+    const missingCritical = (["vix", "index_etf", "breadth", "sectors"] as const).filter((k) => inputDates[k] == null);
+    // As fresh as the oldest critical input; null only when none is present.
+    const inputsAsOf = minDate(...critical);
+    const degraded = missingCritical.length > 0 || inputsAsOf == null || inputsAsOf < snapshotDate;
 
     const sVol   = scoreVolatility(vol.vix, vol.vix_5d_slope, vol.vix_1y_pct, vol.vvix);
     const sTrend = scoreTrend(trend.regime, trend.qqq_above_50, trend.spy_rsi);
@@ -470,7 +525,8 @@ Deno.serve(async (_req: Request) => {
         exec_pullbacks_status: ew.factors.pullbacks.status, exec_pullbacks_detail: ew.factors.pullbacks.detail,
         exec_followthrough_status: ew.factors.follow.status, exec_followthrough_detail: ew.factors.follow.detail,
         narrative_text: narrative.text, suggested_action: narrative.suggested_action,
-        raw_inputs: { volatility: vol, trend, breadth, momentum, macro },
+        raw_inputs: { volatility: vol, trend, breadth, momentum, macro, input_dates: inputDates },
+        inputs_as_of: inputsAsOf,
       };
     });
 
@@ -487,11 +543,16 @@ Deno.serve(async (_req: Request) => {
         vix: vol.vix != null, spy_rsi: trend.spy_rsi != null, ratio5: breadth.ratio5 != null,
         sectors: momentum.sectors.length, tnx_trend: macro.tnx_5d_trend != null,
       },
+      input_dates: inputDates,
+      inputs_as_of: inputsAsOf,
+      missing_critical: missingCritical,
+      stale_inputs: degraded,
+      rows_written: rowsToUpsert.length,
     };
-    await finishJob("ok", summary);
-    return new Response(JSON.stringify({ ok: true, ...summary }), { headers: { "Content-Type": "application/json" } });
+    await finishJob(degraded ? "partial" : "ok", summary);
+    return new Response(JSON.stringify({ ok: true, status: degraded ? "partial" : "ok", ...summary }), { headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = redact(err);
     await finishJob("error", null, msg);
     return new Response(JSON.stringify({ ok: false, error: msg }), { status: 500, headers: { "Content-Type": "application/json" } });
   }

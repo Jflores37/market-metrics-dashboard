@@ -37,9 +37,13 @@ function useRRG() {
   return useQuery({
     queryKey: ["mm-rrg"],
     queryFn: async () => {
+      // Belt-and-braces with the view's own 35-day window: only the last
+      // ~3 weeks feed the tails, so stay well under PostgREST's 1,000-row cap.
+      const since = new Date(Date.now() - 21 * 86_400_000)
+        .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       const [current, trails] = await Promise.all([
         supabase.from("rrg_sectors_v").select("*"),
-        supabase.from("rrg_sectors_trail_v").select("*").order("snapshot_date"),
+        supabase.from("rrg_sectors_trail_v").select("*").gte("snapshot_date", since).order("snapshot_date"),
       ]);
       if (current.error) throw current.error;
       if (trails.error) throw trails.error;

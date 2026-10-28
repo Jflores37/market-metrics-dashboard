@@ -26,6 +26,8 @@ interface PremarketRow {
   rel_volume: number | null;
   article_url: string | null;
   news: string | null;
+  fetched_at?: string | null;
+  as_of_date?: string | null;
 }
 
 interface EarningsRow {
@@ -50,6 +52,20 @@ interface IntradayDashboard {
   premarket: PremarketRow[];
   earnings_yest_today: EarningsRow[];
   generated_at: string;
+  // Appended by migration 390; optional so an older view still renders.
+  premarket_fetched_at?: string | null;
+  movers_fetched_at?: string | null;
+  earnings_counts?: { today: number; yesterday: number } | null;
+  prices_as_of?: string | null;
+}
+
+const etDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+/** "9:20 AM ET" when the timestamp is today (ET), else "Oct 27, 2026 9:20 AM ET". */
+function asOfLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return etDay(d) === etDay(new Date()) ? timeShort(iso) : `${dateLong(iso)} ${timeShort(iso)}`;
 }
 
 // ===== Query =====
@@ -146,7 +162,7 @@ function MoverTable({
 }
 
 // ===== Pre-market =====
-function PremarketSection({ rows }: { rows: PremarketRow[] }) {
+function PremarketSection({ rows, fetchedAt }: { rows: PremarketRow[]; fetchedAt: string | null }) {
   const ups = rows.filter((r) => r.source === "finviz_up");
   const downs = rows.filter((r) => r.source === "finviz_down");
   const cnbc = rows.filter((r) => r.source === "cnbc");
@@ -161,7 +177,7 @@ function PremarketSection({ rows }: { rows: PremarketRow[] }) {
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim">
-          {ups.length + downs.length} symbols
+          {ups.length + downs.length} symbols{fetchedAt ? ` · as of ${asOfLabel(fetchedAt)}` : ""}
         </span>
       </div>
 
@@ -241,7 +257,7 @@ function EarningsRowComp({ row }: { row: EarningsRow }) {
               : "bg-text-dim/15 text-text-dim"
           }`}
         >
-          {row.bucket}
+          {row.bucket === "yesterday" ? "prev session" : row.bucket}
         </span>
       </td>
       <td className="py-1.5"><TickerLink ticker={row.ticker} /></td>
@@ -270,7 +286,13 @@ function EarningsRowComp({ row }: { row: EarningsRow }) {
   );
 }
 
-function EarningsSection({ rows }: { rows: EarningsRow[] }) {
+function EarningsSection({
+  rows, counts, pricesAsOf,
+}: {
+  rows: EarningsRow[];
+  counts: { today: number; yesterday: number } | null;
+  pricesAsOf: string | null;
+}) {
   const today = rows.filter((r) => r.bucket === "today");
   const yesterday = rows.filter((r) => r.bucket === "yesterday");
 
@@ -280,11 +302,14 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
         <div className="flex items-baseline gap-2">
           <span className="text-accent-cyan text-sm signal-glow-cyan">⊙</span>
           <span className="font-mono text-2xs text-text-secondary uppercase tracking-widest font-semibold">
-            Earnings · Yesterday + Today
+            Earnings · Prev Session + Today
           </span>
         </div>
         <span className="font-mono text-2xs text-text-dim tabular-nums">
-          {rows.length} companies
+          {counts && counts.today + counts.yesterday > rows.length
+            ? `top ${rows.length} of ${counts.today + counts.yesterday}`
+            : `${rows.length} companies`}
+          {pricesAsOf ? ` · prices as of ${dateLong(pricesAsOf)} close` : ""}
         </span>
       </div>
 
@@ -297,8 +322,8 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
               <th className="py-1.5">Time</th>
               <th className="py-1.5 hidden lg:table-cell">Sector</th>
               <th className="py-1.5 text-right">Cap</th>
-              <th className="py-1.5 text-right">Price</th>
-              <th className="py-1.5 text-right">Day %</th>
+              <th className="py-1.5 text-right">Prev Close</th>
+              <th className="py-1.5 text-right">Prev Day %</th>
               <th className="py-1.5 text-right">Wk %</th>
               <th className="py-1.5 text-right pr-1">RSI</th>
             </tr>
@@ -310,7 +335,7 @@ function EarningsSection({ rows }: { rows: EarningsRow[] }) {
             {today.length > 0 && yesterday.length > 0 && (
               <tr>
                 <td colSpan={9} className="py-1.5 text-2xs text-text-dim mono uppercase tracking-widest border-b border-border">
-                  ── Yesterday ──
+                  ── Prev session ──
                 </td>
               </tr>
             )}
@@ -363,7 +388,7 @@ export default function Intraday() {
             </div>
           ) : (
             <div className="font-mono text-2xs text-text-dim">
-              live · updated {timeShort(fresh.data_as_of)} · 1m
+              live · updated {timeShort(fresh.data_as_of)} · 10m
             </div>
           )
         )}
@@ -410,10 +435,23 @@ export default function Intraday() {
               icon="◈"
               rows={data.in_play}
             />
-            <PremarketSection rows={data.premarket} />
+            <PremarketSection
+              rows={data.premarket}
+              fetchedAt={
+                data.premarket_fetched_at ??
+                data.premarket.reduce<string | null>(
+                  (m, r) => (r.fetched_at && (!m || r.fetched_at > m) ? r.fetched_at : m),
+                  null,
+                )
+              }
+            />
           </div>
 
-          <EarningsSection rows={data.earnings_yest_today} />
+          <EarningsSection
+            rows={data.earnings_yest_today}
+            counts={data.earnings_counts ?? null}
+            pricesAsOf={data.prices_as_of ?? null}
+          />
         </>
       )}
     </div>

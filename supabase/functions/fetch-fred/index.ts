@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -28,16 +29,52 @@ async function fetchSeries(seriesId: string, apiKey: string, since: string) {
   return (json.observations ?? []) as Array<{ date: string; value: string }>;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
+
+  // job_runs logging (edge-b-03): ok = every series fetched, partial = some
+  // failed, error = all failed / setup failed. job_runs is anon-readable, so
+  // every error string goes through redact(…, apiKey) (edge-b-09).
+  const { data: jobRow, error: jobErr } = await supabase
+    .from("job_runs")
+    .insert({ job_name: "fetch-fred", status: "running" })
+    .select("id")
+    .single();
+  if (jobErr || !jobRow) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "job_runs insert failed: " + redact(jobErr?.message ?? "unknown") }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  const jobId: number = jobRow.id;
+  const finishJob = async (
+    status: "ok" | "partial" | "error",
+    summary: Record<string, unknown> | null,
+    error?: string,
+  ) => {
+    await supabase
+      .from("job_runs")
+      .update({
+        finished_at: new Date().toISOString(),
+        status,
+        elapsed_ms: Date.now() - started,
+        summary,
+        error: error ?? null,
+      })
+      .eq("id", jobId);
+  };
+
+  let apiKey: string | undefined;
   try {
-    const apiKey = await getFredKey();
+    apiKey = await getFredKey();
 
     const { data: series, error: sErr } = await supabase
       .from("macro_series_meta")
       .select("series_id")
       .eq("is_active", true);
-    if (sErr) throw sErr;
+    if (sErr) throw new Error(`macro_series_meta: ${sErr.message}`);
+    if (!series || series.length === 0) throw new Error("No active series in macro_series_meta");
 
     const sinceDate = new Date();
     sinceDate.setFullYear(sinceDate.getFullYear() - 2);
@@ -46,7 +83,7 @@ Deno.serve(async (_req: Request) => {
     const results: Record<string, number> = {};
     const errors: Record<string, string> = {};
 
-    for (const s of series ?? []) {
+    for (const s of series) {
       try {
         const obs = await fetchSeries(s.series_id, apiKey, since);
         const rows = obs
@@ -61,7 +98,7 @@ Deno.serve(async (_req: Request) => {
           const { error: uErr } = await supabase
             .from("macro_observations")
             .upsert(rows, { onConflict: "series_id,observation_date" });
-          if (uErr) throw uErr;
+          if (uErr) throw new Error(`upsert ${s.series_id}: ${uErr.message}`);
         }
         results[s.series_id] = rows.length;
       } catch (err) {
@@ -69,18 +106,36 @@ Deno.serve(async (_req: Request) => {
       }
     }
 
+    const failed = Object.keys(errors).length;
+    const rowsWritten = Object.values(results).reduce((a, b) => a + b, 0);
+    const status = failed === 0 ? "ok" : failed === series.length ? "error" : "partial";
+    const summary = {
+      rows_written: rowsWritten,
+      series_total: series.length,
+      series_failed: failed,
+      fetched: results,
+      errors,
+    };
+    await finishJob(
+      status,
+      summary,
+      failed > 0 ? redact(`${failed}/${series.length} series failed: ${Object.keys(errors).join(", ")}`, apiKey) : undefined,
+    );
+
     return new Response(
       JSON.stringify({
-        ok: Object.keys(errors).length === 0,
+        ok: status === "ok",
+        status,
         elapsed_ms: Date.now() - started,
-        fetched: results,
-        errors,
+        ...summary,
       }),
-      { headers: { "Content-Type": "application/json" } },
+      { status: status === "error" ? 500 : 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
+    const errMsg = redact(err, apiKey);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(
-      JSON.stringify({ ok: false, error: redact(err), elapsed_ms: Date.now() - started }),
+      JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

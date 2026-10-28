@@ -68,18 +68,26 @@ export function colorClass(v: number | null | undefined): string {
   return "num-flat";
 }
 
-/** Format an ISO date as "May 14, 2026" */
+/** Format an ISO date as "May 14, 2026". A bare YYYY-MM-DD is a calendar
+ *  date (not UTC midnight), so it never shifts a day back in US time zones;
+ *  full timestamps render as their US/Eastern date. */
 export function dateLong(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const d = new Date(dateOnly ? `${iso}T00:00:00Z` : iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: dateOnly ? "UTC" : "America/New_York",
+  });
 }
 
-/** Short time like "4:50 PM" — assumes local time zone. */
+/** Short US/Eastern time like "4:50 PM ET", regardless of browser locale/zone. */
 export function timeShort(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })} ET`;
 }

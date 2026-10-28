@@ -29,8 +29,9 @@ export function TickerLink({ ticker, className }: { ticker: string; className?: 
 }
 
 function ChartModal({ ticker, onClose }: { ticker: string; onClose: () => void }) {
-  const src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${ticker}&interval=D&hidesidetoolbar=0&theme=dark&style=1&timezone=Etc%2FUTC`;
-  const tvUrl = `https://www.tradingview.com/chart/?symbol=${ticker}`;
+  const sym = encodeURIComponent(ticker);
+  const src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${sym}&interval=D&hidesidetoolbar=0&theme=dark&style=1&timezone=America%2FNew_York`;
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${sym}`;
   const backdropClass = "fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4";
   const cardClass = "bg-bg-card border border-border rounded-none sm:rounded-[2px] w-full max-w-5xl h-full sm:h-[80vh] flex flex-col overflow-hidden";
   const headerClass = "flex items-center justify-between px-4 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-border bg-bg-panel";

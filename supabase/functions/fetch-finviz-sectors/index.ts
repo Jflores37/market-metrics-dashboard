@@ -7,10 +7,14 @@
 //    these and the Sector SPDRs table renders a YTD column; the old code
 //    never read them, so YTD was permanently blank).
 //  - records job_runs like the other fetchers (was invisible to monitoring).
+// v3 (2026-10-28 audit: edge-a-4/5/7): cron-only x-cron-secret guard; HTML /
+// no-Ticker responses throw; fewer than all 12 tickers is an error and nothing
+// is written; 20s per-request timeout, retried like a 429.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -36,6 +40,7 @@ const SECTOR_MAP: Record<string, { label: string; isBenchmark: boolean }> = {
 // Wide column pull (same proven range as fetch-finviz-breadth) so every
 // performance header is present and matched by name, not by brittle index.
 const WIDE_COLS = Array.from({ length: 150 }, (_, i) => i + 1).join(",");
+const FETCH_TIMEOUT_MS = 20000;
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -105,28 +110,43 @@ function findCol(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function isTimeout(e: unknown): boolean {
+  return e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+}
+
 async function finvizCSV(params: string, auth: string): Promise<string> {
   const url = `https://elite.finviz.com/export.ashx?v=152&${params}&auth=${auth}`;
   const backoff = [0, 3000, 6000, 12000];
   let lastErr: Error | null = null;
   for (let i = 0; i < backoff.length; i++) {
     if (backoff[i] > 0) await sleep(backoff[i]);
-    const res = await fetch(url);
-    if (res.status === 429) {
-      await res.body?.cancel();
-      lastErr = new Error(`Finviz 429 (attempt ${i + 1}/${backoff.length})`);
+    let text: string;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (res.status === 429) {
+        await res.body?.cancel();
+        lastErr = new Error(`Finviz 429 (attempt ${i + 1}/${backoff.length})`);
+        continue;
+      }
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Finviz ${res.status}: ${body.slice(0, 300)}`);
+      }
+      text = await res.text();
+    } catch (e) {
+      if (!isTimeout(e)) throw e;
+      lastErr = new Error(`Finviz timeout after ${FETCH_TIMEOUT_MS}ms (attempt ${i + 1}/${backoff.length})`);
       continue;
     }
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Finviz ${res.status}: ${body.slice(0, 300)}`);
-    }
-    return res.text();
+    // A login/error page comes back as 200 HTML: never treat it as data.
+    if (text.trimStart().startsWith("<")) throw new Error("Finviz returned HTML instead of CSV (token expired?)");
+    return text;
   }
   throw lastErr ?? new Error("Finviz pull failed after retries");
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const started = Date.now();
 
   const { data: jobRow } = await supabase
@@ -154,8 +174,9 @@ Deno.serve(async () => {
       .eq("id", jobId);
   };
 
+  let auth = "";
   try {
-    const auth = await getSecret("finviz_token");
+    auth = await getSecret("finviz_token");
     const tickers = Object.keys(SECTOR_MAP).join(",");
     const csv = await finvizCSV(`t=${tickers}&c=${WIDE_COLS}`, auth);
     const rows = parseCSV(csv);
@@ -178,14 +199,19 @@ Deno.serve(async () => {
     const missing = required.filter((k) => idx[k] < 0);
     if (missing.length) throw new Error(`Missing cols: ${missing.join(",")}. Got: ${headers.join(" | ")}`);
 
-    const snapshotDate = new Date().toISOString().slice(0, 10);
+    // ET calendar date (UTC would stamp tomorrow on a run after 8 PM ET).
+    const snapshotDate = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     const records: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       const ticker = str(row[idx.ticker]);
       if (!ticker) continue;
       const meta = SECTOR_MAP[ticker.toUpperCase()];
       if (!meta) continue;  // ignore unexpected tickers
+      // A duplicate would break the upsert and could mask a missing ticker in the count.
+      if (seen.has(ticker.toUpperCase())) continue;
+      seen.add(ticker.toUpperCase());
       records.push({
         ticker:        ticker.toUpperCase(),
         snapshot_date: snapshotDate,
@@ -203,7 +229,13 @@ Deno.serve(async () => {
       });
     }
 
-    if (records.length === 0) throw new Error("No matching sector tickers returned");
+    // All 12 or nothing: a short set would leave the sector table half-updated.
+    const expectedCount = Object.keys(SECTOR_MAP).length;
+    if (records.length < expectedCount) {
+      const got = new Set(records.map((r) => r.ticker));
+      const absent = Object.keys(SECTOR_MAP).filter((t) => !got.has(t));
+      throw new Error(`Only ${records.length}/${expectedCount} sector tickers returned (missing: ${absent.join(",")})`);
+    }
 
     const { error: uErr } = await supabase
       .from("sector_etf_snapshot")
@@ -215,6 +247,7 @@ Deno.serve(async () => {
       upserted: records.length,
       tickers: records.map((r) => r.ticker),
       ytd_present: records.filter((r) => r.perf_ytd != null).length,
+      rows_written: records.length,
     };
     await finishJob("ok", summary);
 
@@ -223,7 +256,7 @@ Deno.serve(async () => {
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    const errMsg = redact(err);
+    const errMsg = redact(err, auth);
     await finishJob("error", null, errMsg);
     return new Response(
       JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }),

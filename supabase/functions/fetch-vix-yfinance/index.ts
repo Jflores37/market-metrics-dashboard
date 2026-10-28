@@ -1,9 +1,15 @@
 // fetch-vix-yfinance
 // Pulls daily ^VIX and ^VVIX closes from Yahoo Finance chart API → vix_history.
 // Used by Should I Trade's volatility component (25% weight).
+// 2026-10-28 (edge-b-07): VVIX is secondary, so its failure no longer blocks
+// the VIX update (status partial). VIX and VVIX are upserted as separate column
+// payloads so a missing side never writes NULL over a stored value. Weekend and
+// NYSE-holiday bars (Yahoo emits stale ^VIX bars on holidays) are skipped.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -56,7 +62,8 @@ async function fetchYahooDaily(
   return out;
 }
 
-Deno.serve(async (_req: Request) => {
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const startedAt = Date.now();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -75,7 +82,7 @@ Deno.serve(async (_req: Request) => {
   const jobId: number = jobRow.id;
 
   const finishJob = async (
-    status: "ok" | "error",
+    status: "ok" | "partial" | "error",
     summary: Record<string, unknown> | null,
     error?: string,
   ) => {
@@ -92,57 +99,74 @@ Deno.serve(async (_req: Request) => {
   };
 
   try {
-    // Fetch both in parallel
-    const [vix, vvix] = await Promise.all([
+    // Fetch both in parallel; only VIX is critical.
+    const [vixRes, vvixRes] = await Promise.allSettled([
       fetchYahooDaily("^VIX"),
       fetchYahooDaily("^VVIX"),
     ]);
+    if (vixRes.status === "rejected") throw vixRes.reason;
+    const vix = vixRes.value;
+    const vvix = vvixRes.status === "fulfilled" ? vvixRes.value : new Map<string, number>();
+    const vvixError = vvixRes.status === "rejected" ? redact(vvixRes.reason) : null;
 
     if (vix.size === 0) throw new Error("No VIX rows returned from Yahoo");
 
-    // Union of dates from both series; VVIX may be missing for some recent days
-    const allDates = new Set<string>([...vix.keys(), ...vvix.keys()]);
-    const payload: Array<{
-      observation_date: string;
-      vix_close: number | null;
-      vvix_close: number | null;
-      fetched_at: string;
-    }> = [];
+    // NYSE closures (db market calendar) + weekends are not trading days.
+    const { data: hol, error: holErr } = await supabase.from("market_holidays").select("holiday");
+    if (holErr) throw new Error(`market_holidays query failed: ${holErr.message}`);
+    const holidays = new Set<string>((hol ?? []).map((h: { holiday: string }) => h.holiday));
+    const isTradingDate = (d: string) => {
+      const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
+      return dow !== 0 && dow !== 6 && !holidays.has(d);
+    };
+
     const nowIso = new Date().toISOString();
-    for (const date of allDates) {
-      payload.push({
-        observation_date: date,
-        vix_close: vix.get(date) ?? null,
-        vvix_close: vvix.get(date) ?? null,
-        fetched_at: nowIso,
-      });
-    }
+    const vixPayload = [...vix.entries()]
+      .filter(([d]) => isTradingDate(d))
+      .map(([d, c]) => ({ observation_date: d, vix_close: c, fetched_at: nowIso }));
+    if (vixPayload.length === 0) throw new Error("No VIX rows on trading days");
+    const vixDates = new Set(vixPayload.map((p) => p.observation_date));
+    // VVIX only on dates that have a VIX row (the VIX upsert creates the row first).
+    const vvixPayload = [...vvix.entries()]
+      .filter(([d]) => vixDates.has(d))
+      .map(([d, c]) => ({ observation_date: d, vvix_close: c }));
 
     const { error: upErr } = await supabase
       .from("vix_history")
-      .upsert(payload, { onConflict: "observation_date" });
-    if (upErr) throw new Error(`Upsert failed: ${upErr.message}`);
+      .upsert(vixPayload, { onConflict: "observation_date" });
+    if (upErr) throw new Error(`VIX upsert failed: ${upErr.message}`);
 
-    const sortedDates = payload.map((p) => p.observation_date).sort().reverse();
-    const latestDate = sortedDates[0];
-    const latestEntry = payload.find((p) => p.observation_date === latestDate)!;
+    let vvixUpsertError: string | null = null;
+    if (vvixPayload.length > 0) {
+      const { error: vvErr } = await supabase
+        .from("vix_history")
+        .upsert(vvixPayload, { onConflict: "observation_date" });
+      if (vvErr) vvixUpsertError = `VVIX upsert failed: ${vvErr.message}`;
+    }
+
+    const latestDate = [...vixDates].sort().reverse()[0];
+    const vvixProblem = vvixError ?? vvixUpsertError ?? (vvixPayload.length === 0 ? "No VVIX rows returned" : null);
 
     const summary = {
-      rows_upserted: payload.length,
+      rows_written: vixPayload.length,
+      rows_upserted: vixPayload.length,
       vix_rows: vix.size,
-      vvix_rows: vvix.size,
+      vvix_rows: vvixPayload.length,
+      skipped_non_trading: vix.size - vixPayload.length,
       latest_date: latestDate,
-      latest_vix: latestEntry.vix_close,
-      latest_vvix: latestEntry.vvix_close,
+      latest_vix: vix.get(latestDate) ?? null,
+      latest_vvix: vvix.get(latestDate) ?? null,
+      vvix_error: vvixProblem,
     };
-    await finishJob("ok", summary);
+    const status = vvixProblem ? "partial" : "ok";
+    await finishJob(status, summary, vvixProblem ?? undefined);
 
-    return new Response(JSON.stringify({ ok: true, ...summary }), {
+    return new Response(JSON.stringify({ ok: true, status, ...summary }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await finishJob("error", null, errMsg);
+    const errMsg = redact(err);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

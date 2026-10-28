@@ -73,7 +73,8 @@ function useSectors() {
   });
 }
 
-// USD Broad Index (FRED DTWEXBGS) — DXY proxy. raw_inputs.macro doesn't
+// USD Broad Index (FRED DTWEXBGS). Not DXY: it runs ~20 pts higher and has a
+// different basket, so it is labeled as what it is. raw_inputs.macro doesn't
 // carry it, so read macro_observations directly: latest level + ~1-week
 // (5 business day) % change for a direction read.
 function useDxy() {
@@ -99,7 +100,7 @@ function useDxy() {
         latest != null && prior != null && prior !== 0
           ? ((latest - prior) / prior) * 100
           : null;
-      return { latest, pctChg };
+      return { latest, pctChg, obsDate: rows[0].observation_date };
     },
     enabled: isSupabaseConfigured,
   });
@@ -288,7 +289,7 @@ function buildMomentum(r: SITRow["raw_inputs"], sectorLabel: (t: string) => stri
 
 function buildMacro(
   r: SITRow["raw_inputs"],
-  dxy: { latest: number | null; pctChg: number | null } | null,
+  dxy: { latest: number | null; pctChg: number | null; obsDate: string | null } | null,
 ): DetailRow[] {
   const m = r.macro;
   const yld = m?.tnx ?? null;
@@ -303,8 +304,11 @@ function buildMacro(
   return [
     { label: "10Y Yield", value: yld != null ? `${num(yld, 2)}%` : "—", badge: tr == null ? "—" : tr > 0.05 ? "Rising" : tr < -0.05 ? "Falling" : "Flat", badgeTone: tr == null ? "gray" : tr > 0.05 ? "red" : tr < -0.05 ? "green" : "yellow" },
     {
-      label: "DXY",
-      value: dxyVal != null ? num(dxyVal, 2) : "—",
+      label: "USD Broad Index",
+      value:
+        dxyVal != null
+          ? `${num(dxyVal, 2)}${dxy?.obsDate ? ` · ${new Date(`${dxy.obsDate.slice(0, 10)}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}` : ""}`
+          : "—",
       badge: dxyChg != null ? `${dxyBadge} ${pct(dxyChg, 2)}` : dxyBadge,
       badgeTone: dxyTone,
     },

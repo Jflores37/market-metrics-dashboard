@@ -1,25 +1,41 @@
 // fetch-cnbc-premarket
-// Defensive CNBC scrape: pre-markets section -> latest premarket movers article
-// -> parsed (company, ticker, news) rows. Designed to fail gracefully when
-// CNBC's HTML changes: returns status='ok' with rows_inserted=0 and a 'note'
-// in summary explaining what wasn't found.
+// CNBC "Stocks making the biggest moves premarket" -> cnbc_premarket_raw
+// (company, ticker, news) rows.
+//
+// 2026-10-28 (edge-b-02 / ops-security-live-4 / sit-04): the old source
+// (cnbc.com/pre-markets/ -> 301 /markets/pre-markets/) became a quotes page
+// with no dated article links, so the scraper never inserted a row while
+// reporting 'ok'. New source: the Market Insider RSS feed lists the daily
+// premarket-movers article. Its body is "registeredOnly" (no <p>/<strong>
+// markup), but the page embeds the plain text as JSON `articleBodyText`
+// ("Company — news. Company — news ...") plus security tags
+// {"symbol":"HOOD","tagName":"Robinhood Markets Inc"} used to map names to
+// tickers. Status: non-trading day -> ok/skipped; no article for today ET or 0
+// parsed rows on a trading day -> 'error' (never a silent ok).
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
+import { requireCronSecret } from "../_shared/cron_auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SECTION_URLS = [
-  "https://www.cnbc.com/pre-markets/",
-  "https://www.cnbc.com/markets/pre-markets/",
+// CNBC public RSS: 20409666 = Market Insider (carries the premarket movers
+// franchise same-morning), 10000664 = Finance (fallback).
+const RSS_URLS = [
+  "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20409666",
+  "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664",
 ];
+// e.g. /2026/10/28/stocks-making-the-biggest-moves-premarket-ulbi-slhy-hood-enph.html
+const ARTICLE_RE =
+  /https?:\/\/www\.cnbc\.com\/(\d{4})\/(\d{2})\/(\d{2})\/([a-z0-9\-]*mov[a-z]*-[a-z0-9\-]*pre-?market[a-z0-9\-]*)\.html/gi;
 
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
 
-// Fallback map for the most common premarket-movers names (used only when no
-// ticker is found in the article HTML itself).
+// Fallback map for the most common premarket-movers names (used only when the
+// article's own security tags don't resolve the company).
 const COMPANY_MAP: Record<string, string> = {
   "apple": "AAPL", "tesla": "TSLA", "nvidia": "NVDA", "microsoft": "MSFT",
   "alphabet": "GOOGL", "google": "GOOGL", "meta": "META", "meta platforms": "META",
@@ -45,7 +61,7 @@ const COMPANY_MAP: Record<string, string> = {
   "pfizer": "PFE", "moderna": "MRNA", "eli lilly": "LLY",
   "merck": "MRK", "abbvie": "ABBV", "unitedhealth": "UNH",
   "disney": "DIS", "warner bros. discovery": "WBD", "comcast": "CMCSA",
-  "verizon": "VZ", "at&t": "T",
+  "verizon": "VZ", "at&t": "T", "spacex": "SPCX",
 };
 
 function decodeEntities(s: string): string {
@@ -62,13 +78,56 @@ function normalizeCompany(s: string): string {
   return decodeEntities(s).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+// Loose key for matching body names against security tag names
+// ("AT & T" ~ "AT&T Inc", "Danaher Corporation" ~ "Danaher Corp").
+function nameKey(s: string): string {
+  return decodeEntities(s).toLowerCase()
+    .replace(/\s*&\s*/g, "&")
+    .replace(/[^a-z0-9&]+/g, " ")
+    .replace(/\b(inc|incorporated|corp|corporation|co|company|plc|ltd|sa|nv|ag)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function stripHtml(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
     .trim();
 }
 
-Deno.serve(async (_req: Request) => {
+function etToday(): string {
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+
+async function getText(url: string): Promise<string> {
+  const r = await fetch(url, {
+    headers: { "User-Agent": BROWSER_UA, Accept: "text/html,application/xml" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+  return await r.text();
+}
+
+// Plain article text: JSON articleBodyText first, hidden xyz-data span second.
+function extractBodyText(html: string): string | null {
+  const j = /"articleBodyText":("(?:[^"\\]|\\.)*")/.exec(html);
+  if (j) {
+    try {
+      const t = JSON.parse(j[1]);
+      if (typeof t === "string" && t.trim()) return decodeEntities(t).replace(/\s+/g, " ").trim();
+    } catch (_) { /* fall through */ }
+  }
+  const span = /class="xyz-data">([\s\S]*?)<\/span>/.exec(html);
+  if (span) {
+    const t = stripHtml(span[1]);
+    if (t) return t;
+  }
+  return null;
+}
+
+Deno.serve(async (req: Request) => {
+  const denied = requireCronSecret(req); if (denied) return denied;
   const startedAt = Date.now();
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -79,14 +138,14 @@ Deno.serve(async (_req: Request) => {
     .single();
   if (jobErr || !jobRow) {
     return new Response(
-      JSON.stringify({ ok: false, error: "job_runs insert failed: " + (jobErr?.message ?? "unknown") }),
+      JSON.stringify({ ok: false, error: "job_runs insert failed: " + redact(jobErr?.message ?? "unknown") }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
   const jobId: number = jobRow.id;
 
   const finishJob = async (
-    status: "ok" | "error",
+    status: "ok" | "partial" | "error",
     summary: Record<string, unknown> | null,
     error?: string,
   ) => {
@@ -102,127 +161,125 @@ Deno.serve(async (_req: Request) => {
       .eq("id", jobId);
   };
 
-  const note = (n: string) =>
-    finishJob("ok", { rows_inserted: 0, note: n }).then(() =>
-      new Response(JSON.stringify({ ok: true, rows_inserted: 0, note: n }), {
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
   try {
-    // Step 1: try each section URL until one returns 200
-    let sectionHtml = "";
-    let sectionUrlUsed = "";
-    for (const url of SECTION_URLS) {
-      try {
-        const r = await fetch(url, {
-          headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
-        });
-        if (r.ok) {
-          sectionHtml = await r.text();
-          sectionUrlUsed = url;
-          break;
-        }
-      } catch (_) {
-        // try next
-      }
-    }
-    if (!sectionHtml) return await note("All section URLs failed or returned non-200");
+    const today = etToday();
 
-    // Step 2: regex for article URLs matching premarket movers pattern
-    const articleRegex =
-      /https?:\/\/www\.cnbc\.com\/(\d{4})\/(\d{2})\/(\d{2})\/([a-z0-9\-]*(?:premarket|pre-market)[a-z0-9\-]*)\.html/gi;
-    const found = new Map<string, { url: string; date: string }>();
-    let m: RegExpExecArray | null;
-    while ((m = articleRegex.exec(sectionHtml)) !== null) {
-      const url = m[0];
-      const date = `${m[1]}-${m[2]}-${m[3]}`;
-      if (!found.has(url)) found.set(url, { url, date });
-    }
-    if (found.size === 0) {
-      return await note(`No premarket article URLs found on ${sectionUrlUsed}`);
-    }
-
-    // Sort by date desc, pick most recent
-    const articles = Array.from(found.values()).sort((a, b) =>
-      a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
-    );
-    const article = articles[0];
-
-    // Step 3: fetch the article
-    const articleResp = await fetch(article.url, {
-      headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
-    });
-    if (!articleResp.ok) {
-      return await note(`Article HTTP ${articleResp.status}: ${article.url}`);
-    }
-    const articleHtml = await articleResp.text();
-
-    // Step 4: parse paragraphs with structure <p>...<strong|b>Company</strong|b>...em-dash...rest</p>
-    // Multiple dash chars CNBC uses: — (em), – (en), - (hyphen with surrounding spaces)
-    const paraRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi;
-    const rows: Array<Record<string, unknown>> = [];
-    const seen = new Set<string>();
-
-    let p: RegExpExecArray | null;
-    while ((p = paraRegex.exec(articleHtml)) !== null) {
-      const innerHtml = p[1];
-      // Find first bold/strong text
-      const boldMatch = /<(?:strong|b)[^>]*>\s*([^<]+?)\s*<\/(?:strong|b)>/.exec(innerHtml);
-      if (!boldMatch) continue;
-
-      const company = normalizeCompany(boldMatch[1]);
-      if (!company || company.length < 2 || company.length > 60) continue;
-      // Filter obvious non-company bold phrases
-      if (/^(also read|read more|more from|cnbc pro|don't miss|watch:)/i.test(company)) continue;
-      if (seen.has(company)) continue;
-
-      // Must contain a dash separator somewhere after the bold close tag
-      const afterBold = innerHtml.slice(boldMatch.index + boldMatch[0].length);
-      const dashMatch = /^\s*[—–\-]+\s*([\s\S]+)$/.exec(afterBold);
-      if (!dashMatch) continue;
-
-      seen.add(company);
-
-      // Try to extract ticker
-      let ticker: string | null = null;
-      const fullPara = p[0];
-      const quoteHref = /\/quotes\/([A-Z][A-Z0-9.\-]{0,5})(?:[\/"?#])/i.exec(fullPara);
-      if (quoteHref) ticker = quoteHref[1].toUpperCase();
-      if (!ticker) {
-        const inParens = /\((?:NASDAQ|NYSE|AMEX|CBOE):\s*([A-Z][A-Z0-9.\-]{0,5})\s*\)/i.exec(fullPara);
-        if (inParens) ticker = inParens[1].toUpperCase();
-      }
-      if (!ticker) {
-        const mapped = COMPANY_MAP[company];
-        if (mapped) ticker = mapped;
-      }
-      if (!ticker) continue;
-
-      let news = stripHtml(dashMatch[1]);
-      if (!news) continue;
-      if (news.length > 1000) news = news.slice(0, 1000);
-
-      rows.push({
-        article_url: article.url,
-        article_date: article.date,
-        ticker,
-        company: decodeEntities(boldMatch[1]).trim(),
-        news,
-        fetched_at: new Date().toISOString(),
+    // Non-trading day: nothing is published, not a failure.
+    const { data: isTrading, error: tdErr } = await supabase.rpc("is_trading_day", { d: today });
+    if (tdErr) throw new Error(`is_trading_day rpc failed: ${tdErr.message}`);
+    if (isTrading !== true) {
+      const summary = { rows_written: 0, skipped: "non-trading day", et_date: today };
+      await finishJob("ok", summary);
+      return new Response(JSON.stringify({ ok: true, ...summary }), {
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    // Step 5: replace this article's rows (clean re-run semantics)
-    await supabase.from("cnbc_premarket_raw").delete().eq("article_url", article.url);
+    // Step 1: find today's premarket-movers article in the RSS feeds
+    const found = new Map<string, { url: string; date: string }>();
+    const feedErrors: string[] = [];
+    for (const feed of RSS_URLS) {
+      try {
+        const xml = await getText(feed);
+        let m: RegExpExecArray | null;
+        ARTICLE_RE.lastIndex = 0;
+        while ((m = ARTICLE_RE.exec(xml)) !== null) {
+          const url = m[0];
+          const date = `${m[1]}-${m[2]}-${m[3]}`;
+          if (!found.has(url)) found.set(url, { url, date });
+        }
+      } catch (e) {
+        feedErrors.push(redact(e));
+      }
+      if (Array.from(found.values()).some((a) => a.date === today)) break;
+    }
+    const todays = Array.from(found.values()).filter((a) => a.date === today);
+    if (todays.length === 0) {
+      throw new Error(
+        `No premarket-movers article dated ${today} in CNBC RSS` +
+          (feedErrors.length ? ` (feed errors: ${feedErrors.join("; ")})` : ` (${found.size} older found)`),
+      );
+    }
+    const article = todays[0];
 
-    if (rows.length > 0) {
-      const { error: insErr } = await supabase.from("cnbc_premarket_raw").insert(rows);
-      if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
+    // Step 2: fetch the article and pull body text + security tags
+    const articleHtml = await getText(article.url);
+    const body = extractBodyText(articleHtml);
+    if (!body) throw new Error(`Article body text not found (page layout changed?): ${article.url}`);
+
+    const tags: Array<{ symbol: string; key: string }> = [];
+    const tagRe = /"symbol":"([A-Z][A-Z0-9.\-]{0,6})","tagName":"([^"]+)"/g;
+    let tm: RegExpExecArray | null;
+    while ((tm = tagRe.exec(articleHtml)) !== null) {
+      tags.push({ symbol: tm[1], key: nameKey(tm[2]) });
+    }
+    const resolveTicker = (company: string): string | null => {
+      const k = nameKey(company);
+      if (k.length < 2) return null;
+      for (const t of tags) {
+        if (t.key === k || t.key.startsWith(k + " ") || k.startsWith(t.key + " ")) return t.symbol;
+      }
+      return COMPANY_MAP[normalizeCompany(company)] ?? null;
+    };
+
+    // Step 3: "Company — news" segments. Every head bounds the previous news;
+    // only heads whose name(s) resolve to a ticker produce rows ("Dell
+    // Technologies, Hewlett Packard Enterprise — ..." yields both).
+    const headRe = /(?:^|[.:!?)"”]\s+)([A-Z0-9][^.:!?—–]{0,58}?)\s+[—–]\s+/g;
+    const heads: Array<{ parts: Array<{ company: string; ticker: string }>; start: number; end: number }> = [];
+    let hm: RegExpExecArray | null;
+    while ((hm = headRe.exec(body)) !== null) {
+      const name = hm[1].trim();
+      const whole = name.includes(",") ? null : resolveTicker(name);
+      const parts = /^(also read|read more|more from|cnbc pro|don't miss|watch)/i.test(name)
+        ? []
+        : whole
+        ? [{ company: name, ticker: whole }]
+        : name.split(/\s*,\s*|\s+and\s+/)
+          .map((c) => ({ company: c.trim(), ticker: resolveTicker(c.trim()) }))
+          .filter((p): p is { company: string; ticker: string } => p.ticker != null);
+      heads.push({ parts, start: hm.index + hm[0].indexOf(hm[1]), end: hm.index + hm[0].length });
     }
 
+    const rows: Array<Record<string, unknown>> = [];
+    const seen = new Set<string>();
+    const fetchedAt = new Date().toISOString();
+    for (let i = 0; i < heads.length; i++) {
+      const h = heads[i];
+      if (h.parts.length === 0) continue;
+      let news = body.slice(h.end, i + 1 < heads.length ? heads[i + 1].start : body.length).trim();
+      news = news.replace(/\s*[—–]\s*CNBC['’]s[\s\S]*$/, "").trim();
+      if (!news) continue;
+      if (news.length > 1000) news = news.slice(0, 1000);
+      for (const p of h.parts) {
+        if (seen.has(p.ticker)) continue;
+        seen.add(p.ticker);
+        rows.push({
+          article_url: article.url,
+          article_date: article.date,
+          ticker: p.ticker,
+          company: p.company,
+          news,
+          fetched_at: fetchedAt,
+        });
+      }
+    }
+
+    if (rows.length === 0) {
+      throw new Error(
+        `Parsed 0 movers from ${article.url} (heads=${heads.length}, tags=${tags.length}, body_chars=${body.length})`,
+      );
+    }
+
+    // Step 4: replace this article's rows (clean re-run semantics), only after
+    // a successful parse so a bad run never empties good data.
+    const { error: delErr } = await supabase.from("cnbc_premarket_raw").delete().eq("article_url", article.url);
+    if (delErr) throw new Error(`Delete failed: ${delErr.message}`);
+    const { error: insErr } = await supabase.from("cnbc_premarket_raw").insert(rows);
+    if (insErr) throw new Error(`Insert failed: ${insErr.message}`);
+
     const summary = {
-      section_url: sectionUrlUsed,
+      rows_written: rows.length,
       article_url: article.url,
       article_date: article.date,
       rows_inserted: rows.length,
@@ -234,8 +291,8 @@ Deno.serve(async (_req: Request) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    await finishJob("error", null, errMsg);
+    const errMsg = redact(err);
+    await finishJob("error", { rows_written: 0 }, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

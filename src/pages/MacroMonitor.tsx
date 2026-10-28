@@ -1,25 +1,21 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { usdCompact, num } from "@/lib/format";
+import { usdCompact, num, timeShort, dateLong } from "@/lib/format";
 import Sparkline from "@/components/macro/Sparkline";
 import SignalDonut from "@/components/macro/SignalDonut";
 
 const REFRESH_INTERVAL_MIN = 30;
 
-function NextRefreshIndicator({ generatedAt }: { generatedAt: string }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  const generated = new Date(generatedAt).getTime();
-  if (Number.isNaN(generated)) return null;
-  const nextMs = generated + REFRESH_INTERVAL_MIN * 60_000;
-  const remainingMin = Math.max(0, Math.round((nextMs - now) / 60_000));
+// When the FRED data itself was last fetched (max macro_observations.fetched_at),
+// not when the view was queried.
+function UpdatedIndicator({ fetchedAt }: { fetchedAt: string }) {
+  if (Number.isNaN(new Date(fetchedAt).getTime())) return null;
+  const sameDayEt =
+    new Date(fetchedAt).toLocaleDateString("en-CA", { timeZone: "America/New_York" }) ===
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   return (
     <span className="font-mono text-2xs text-text-dim uppercase tracking-widest tabular-nums">
-      next refresh ~{remainingMin}m
+      Updated {sameDayEt ? "" : `${dateLong(fetchedAt)} `}{timeShort(fetchedAt)}
     </span>
   );
 }
@@ -70,6 +66,8 @@ interface DashboardPayload {
   fiscal: FiscalRow[];
   signal_balance: SignalBalance;
   generated_at: string;
+  // Appended by migration 430; optional so an older view still renders.
+  data_fetched_at?: string | null;
 }
 
 function useMacroDashboard() {
@@ -84,7 +82,6 @@ function useMacroDashboard() {
       return (data?.dashboard ?? null) as DashboardPayload | null;
     },
     enabled: isSupabaseConfigured,
-    // Keep the "next refresh ~Nm" countdown honest — actually refetch.
     refetchInterval: REFRESH_INTERVAL_MIN * 60_000,
   });
 }
@@ -103,19 +100,34 @@ const SIGNAL_DOT_SQ: Record<Signal, string> = {
   tightening: "bg-accent-yellow",
 };
 
-function formatObsDate(iso: string | null): string {
+// Monthly FRED series render as "Oct 2026"; everything else keeps its exact
+// day, even when that day is the 1st.
+const MONTHLY_METRICS = new Set([
+  "cpi_yoy", "core_cpi_yoy", "ppi_yoy", "pce_yoy", "core_pce_yoy", "unemployment", "nfp", "sentiment",
+]);
+
+function formatObsDate(iso: string | null, metricId?: string): string {
   if (!iso) return "—";
   try {
     const d = new Date(iso + (iso.length === 10 ? "T00:00:00Z" : ""));
     if (isNaN(d.getTime())) return iso;
-    // Heuristic: if the date is the 1st of a month, render as month+year (FRED monthly)
-    if (d.getUTCDate() === 1) {
+    if (metricId && MONTHLY_METRICS.has(metricId)) {
       return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
     }
     return iso.slice(0, 10);
   } catch {
     return iso;
   }
+}
+
+// Fiscal series are annual (FY, Sept 30 year-end) or quarterly. Tag each value
+// with its period so a year-old deficit doesn't read like this quarter's debt.
+function fiscalPeriod(iso: string | null): string {
+  if (!iso) return "—";
+  const [y, m] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m) return iso;
+  if (m === 9 && iso.slice(8, 10) === "30") return `FY${y}`;
+  return `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
 }
 
 // 'deficit' is the only KPI whose server string is an unscaled "-$1775B".
@@ -139,7 +151,9 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
         {kpiDisplay(kpi)}
       </div>
       <div className="text-2xs text-text-dim mono truncate">
-        {formatObsDate(kpi.observation_date)}
+        {kpi.metric_id === "deficit"
+          ? fiscalPeriod(kpi.observation_date)
+          : formatObsDate(kpi.observation_date, kpi.metric_id)}
       </div>
       <div className="flex-1 min-h-[22px] -mx-1">
         <Sparkline points={kpi.sparkline} signal={kpi.signal} />
@@ -239,6 +253,7 @@ function FiscalCard({ title, rows }: { title: string; rows: FiscalRow[] }) {
           >
             <span className="text-xs text-text-secondary mono">
               {row.label}
+              <span className="ml-1.5 text-2xs text-text-dim">{fiscalPeriod(row.observation_date)}</span>
             </span>
             <span className="font-mono text-sm font-semibold text-text-primary tabular-nums shrink-0">
               {fiscalDisplay(row)}
@@ -261,7 +276,7 @@ export default function MacroMonitor() {
           <h1 className="font-mono text-base font-semibold text-text-primary signal-glow-green">Macro Monitor</h1>
           <span className="text-xs text-text-dim mono">— Policy & market signals</span>
         </div>
-        {data?.generated_at && <NextRefreshIndicator generatedAt={data.generated_at} />}
+        {data?.data_fetched_at && <UpdatedIndicator fetchedAt={data.data_fetched_at} />}
       </header>
 
       {!isSupabaseConfigured && (

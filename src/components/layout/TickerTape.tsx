@@ -7,7 +7,10 @@ interface TickerItem {
   ticker: string;
   label: string;
   change_pct: number | null;
+  prevClose?: boolean;
 }
+
+const etDay = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 const DISPLAY_ORDER: Record<string, number> = {
   SPY: 1, "^VIX": 2, QQQ: 3, DIA: 4, IWM: 5, GLD: 6, TLT: 7,
@@ -23,15 +26,25 @@ function useTickerTape() {
       const [intraday, sectors] = await Promise.all([
         supabase
           .from("intraday_quotes_latest_v")
-          .select("ticker, display_label, change_pct"),
+          .select("ticker, display_label, change_pct, fetched_at"),
         supabase
           .from("sector_etf_latest_v")
           .select("ticker, perf_day, is_benchmark"),
       ]);
 
       const items: TickerItem[] = [];
+      const sectorTickers = new Set(
+        (sectors.data ?? []).filter((r) => !r.is_benchmark).map((r) => r.ticker),
+      );
+      const today = etDay(new Date());
 
       for (const row of intraday.data ?? []) {
+        // A sector SPDR's intraday quote only counts if it was fetched today ET;
+        // otherwise its EOD row below is shown and marked "prev close".
+        if (
+          sectorTickers.has(row.ticker) &&
+          (!row.fetched_at || etDay(new Date(row.fetched_at)) !== today)
+        ) continue;
         items.push({
           ticker: row.ticker,
           label: row.display_label ?? row.ticker,
@@ -46,6 +59,7 @@ function useTickerTape() {
           ticker: row.ticker,
           label: row.ticker,
           change_pct: row.perf_day != null ? Number(row.perf_day) : null,
+          prevClose: true,
         });
       }
 
@@ -74,6 +88,9 @@ function TickerRow({ items }: { items: TickerItem[] }) {
           <span className={`${colorClass(item.change_pct)} tabular-nums`}>
             {pct(item.change_pct, 2)}
           </span>
+          {item.prevClose && (
+            <span className="text-text-dim text-2xs">prev close</span>
+          )}
         </div>
       ))}
     </>

@@ -26,6 +26,11 @@ interface ScannerSummary {
   snapshot_date: string | null;
   row_count: number;
   fetched_at: string | null;
+  // Appended by migration 360; optional so an older view still renders.
+  global_snapshot_date?: string | null;
+  is_stale?: boolean | null;
+  last_run_status?: "ok" | "error" | null;
+  last_run_fetched?: number | null;
 }
 
 interface ScannerResult {
@@ -107,24 +112,33 @@ function useScannerSummary() {
 }
 
 /**
- * Per-scanner query. We deliberately do NOT batch all scanners into a
- * single request: PostgREST's response is capped at 1,000 rows by
- * default regardless of any client-side `.range()`, which means a
- * unioned fetch silently drops scanners after the alphabetical cutoff.
- * Twenty parallel queries deduplicate in React Query and avoid the cap.
+ * Per-scanner query, paged. PostgREST caps every response at 1,000 rows, and
+ * a single scanner can exceed that (club_97 returns ~1,500), so we request
+ * 1,000-row pages with `.range()` until a short page comes back. The order
+ * includes ticker as a tiebreak so pages never overlap or skip rows.
  */
+const PAGE_SIZE = 1000;
+
 function useScannerResults(scannerId: string | undefined) {
   return useQuery({
     queryKey: ["scanner-results", scannerId],
     queryFn: async () => {
       if (!scannerId) return [];
-      const { data, error } = await supabase
-        .from("scanner_results_latest_v")
-        .select("*")
-        .eq("scanner_id", scannerId)
-        .order("rank", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return (data ?? []) as ScannerResult[];
+      const all: ScannerResult[] = [];
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await supabase
+          .from("scanner_results_latest_v")
+          .select("*")
+          .eq("scanner_id", scannerId)
+          .order("rank", { ascending: true, nullsFirst: false })
+          .order("ticker", { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        const page = (data ?? []) as ScannerResult[];
+        all.push(...page);
+        if (page.length < PAGE_SIZE) break;
+      }
+      return all;
     },
     enabled: isSupabaseConfigured && !!scannerId,
   });
@@ -206,9 +220,9 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Each card fetches its own scanner_results slice — avoids PostgREST's
-  // 1k-row default response cap (would otherwise drop ~12 scanners
-  // alphabetically past julian_strongest).
+  // Each card fetches its own scanner's rows, paged past PostgREST's
+  // 1,000-row response cap (see useScannerResults), so the count, sort,
+  // CSV and watchlist export all see the full set.
   const { data: rows = [], isLoading } = useScannerResults(scanner.scanner_id);
 
   // Per-scanner column spec drives the table layout. The reference repo
@@ -268,6 +282,15 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
           <span className="font-mono text-2xs text-accent-amber tabular-nums shrink-0">
             {rows.length}
           </span>
+          {scanner.last_run_status === "error" ? (
+            <span className="font-mono text-2xs text-accent-red uppercase tracking-wider shrink-0">
+              Scan failed today
+            </span>
+          ) : scanner.is_stale ? (
+            <span className="font-mono text-2xs text-accent-amber uppercase tracking-wider shrink-0">
+              Last good scan: {scanner.snapshot_date ?? "—"}
+            </span>
+          ) : null}
         </div>
         <div className="flex items-baseline gap-3 shrink-0">
           <span className="font-mono text-2xs text-text-dim">
@@ -328,7 +351,9 @@ function ScannerCard({ scanner }: { scanner: ScannerSummary }) {
       {isLoading ? (
         <div className="font-mono text-2xs text-text-dim text-center py-6">Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="font-mono text-2xs text-text-dim text-center py-6">No results</div>
+        <div className="font-mono text-2xs text-text-dim text-center py-6">
+          {scanner.last_run_status === "ok" && !scanner.is_stale ? "No matches today" : "No results"}
+        </div>
       ) : (
         <div className="overflow-x-auto overflow-y-auto max-h-[360px] border border-border-subtle/60 rounded-[2px]">
           <table className="w-full text-xs font-mono sticky-col-1 tbl-readable">

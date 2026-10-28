@@ -22,11 +22,14 @@ export default function TopBar() {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "America/New_York",
   });
-  const time = now.toLocaleTimeString([], {
+  const time = `${now.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-  });
+    hour12: true,
+    timeZone: "America/New_York",
+  })} ET`;
 
   async function handleRefresh() {
     setRefreshing(true);

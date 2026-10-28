@@ -121,13 +121,17 @@ function MetricCell({ row, isStocks }: { row: KeyMetricRow | undefined; isStocks
           ) : (
             row.above_count
           )}
-          {"/"}
-          {belowUrl && (row.below_count ?? 0) > 0 ? (
-            <a href={belowUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
-              {row.below_count ?? 0}
-            </a>
-          ) : (
-            row.below_count ?? 0
+          {row.below_count != null && (
+            <>
+              {"/"}
+              {belowUrl && row.below_count > 0 ? (
+                <a href={belowUrl} target="_blank" rel="noopener noreferrer" className={linkCls}>
+                  {row.below_count}
+                </a>
+              ) : (
+                row.below_count
+              )}
+            </>
           )}
         </div>
         <div className="h-0.5 bg-bg-panel rounded-full overflow-hidden">

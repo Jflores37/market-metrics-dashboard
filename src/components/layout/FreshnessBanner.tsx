@@ -30,9 +30,16 @@ const JOB_LABEL: Record<string, string> = {
   "fetch-fred": "Macro (FRED)",
   "fetch-cnbc-premarket": "CNBC premarket",
   "compute-should-i-trade": "Should-I-Trade",
+  "db-retention": "DB retention",
 };
-const jobLabel = (j: string): string =>
-  JOB_LABEL[j] ?? j.replace(/^fetch-/, "").replace(/[-:]/g, " ");
+const jobLabel = (j: string): string => {
+  // Scanner runs log per group as "fetch-finviz-scanners:<group>".
+  const [base, group] = j.split(":");
+  if (group && JOB_LABEL[base]) return `${JOB_LABEL[base]} (${group})`;
+  return JOB_LABEL[j] ?? j.replace(/^fetch-/, "").replace(/[-:]/g, " ");
+};
+const failLabel = (status: string): string =>
+  status === "running" ? "stuck" : status === "partial" ? "degraded" : "failed";
 
 // Surfaces broken/stale critical feeds at the top of every page. The dashboard is
 // a trading tool: silently showing days-old data, or a backend job that died, is a
@@ -71,6 +78,8 @@ export default function FreshnessBanner() {
   });
 
   const hasFail = !!failures && failures.length > 0;
+  // Only 'partial' rows = some data landed, so amber "degraded" instead of red.
+  const onlyPartial = hasFail && failures!.every((f) => f.status === "partial");
   const hasStale = !!stale && stale.length > 0;
   if (!hasFail && !hasStale) return null;
 
@@ -81,19 +90,32 @@ export default function FreshnessBanner() {
   return (
     <>
       {hasFail && (
-        <div role="alert" className="border-b border-accent-red/50 bg-accent-red/10 px-4 md:px-6 py-2">
+        <div
+          role="alert"
+          className={`border-b px-4 md:px-6 py-2 ${
+            onlyPartial ? "border-accent-amber/40 bg-accent-amber/10" : "border-accent-red/50 bg-accent-red/10"
+          }`}
+        >
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5 leading-snug font-mono text-xs sm:text-2xs">
-            <span className="text-accent-red font-semibold uppercase tracking-widest signal-glow-red">
-              ⛔ Pipeline failure
-            </span>
+            {onlyPartial ? (
+              <span className="text-accent-amber font-semibold uppercase tracking-widest">
+                ⚠ Pipeline degraded
+              </span>
+            ) : (
+              <span className="text-accent-red font-semibold uppercase tracking-widest signal-glow-red">
+                ⛔ Pipeline failure
+              </span>
+            )}
             {failures!.map((f) => (
               <span key={f.job_name} className="text-text-secondary">
                 {jobLabel(f.job_name)}
-                <span className="text-text-dim"> ({f.status === "running" ? "stuck" : "failed"})</span>
+                <span className="text-text-dim"> ({failLabel(f.status)})</span>
               </span>
             ))}
             <span className="text-text-dim">
-              — a backend feed broke; numbers below may be stale or missing.
+              {onlyPartial
+                ? "— a backend feed only partly updated; some figures below may be stale."
+                : "— a backend feed broke; numbers below may be stale or missing."}
             </span>
           </div>
         </div>

@@ -29,6 +29,27 @@ function useBreadthBars() {
   });
 }
 
+// Universe size per index = key_metrics_v 'stocks' row. The first bar's
+// above+below drops unchanged / null-perf names, so it undercounts.
+function useUniverseTotals() {
+  return useQuery({
+    queryKey: ["universe-totals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("key_metrics_v")
+        .select("universe_id, above_count")
+        .eq("metric_id", "stocks");
+      if (error) throw error;
+      const out: Record<string, number> = {};
+      for (const r of (data ?? []) as { universe_id: string; above_count: number | null }[]) {
+        if (r.above_count != null) out[r.universe_id] = r.above_count;
+      }
+      return out;
+    },
+    enabled: isSupabaseConfigured,
+  });
+}
+
 const barColor = (pct: number) =>
   pct >= 70 ? "bg-accent-green" :
   pct >= 50 ? "bg-accent-blue" :
@@ -41,8 +62,14 @@ const textColor = (pct: number) =>
   pct >= 30 ? "text-accent-yellow" :
   "text-accent-red";
 
-function UniverseBreadthCard({ universe, rows }: { universe: string; rows: BreadthBarRow[] }) {
-  const total = rows[0] ? (rows[0].above_count + rows[0].below_count) : 0;
+function UniverseBreadthCard({
+  universe, rows, universeTotal,
+}: {
+  universe: string;
+  rows: BreadthBarRow[];
+  universeTotal?: number;
+}) {
+  const total = universeTotal ?? (rows[0] ? (rows[0].above_count + rows[0].below_count) : 0);
   return (
     <div className="terminal-card p-4">
       <div className="font-mono text-2xs uppercase tracking-widest font-semibold mb-3 flex items-center justify-between">
@@ -88,6 +115,7 @@ export function BreadthBars({
   icon?: string;
 }) {
   const { data } = useBreadthBars();
+  const { data: totals } = useUniverseTotals();
   if (!data || data.length === 0) return null;
 
   const grouped: Record<string, BreadthBarRow[]> = {};
@@ -108,7 +136,7 @@ export function BreadthBars({
         }`}
       >
         {universes.map((u) => (
-          <UniverseBreadthCard key={u} universe={u} rows={grouped[u] ?? []} />
+          <UniverseBreadthCard key={u} universe={u} rows={grouped[u] ?? []} universeTotal={totals?.[u]} />
         ))}
       </div>
     </div>
