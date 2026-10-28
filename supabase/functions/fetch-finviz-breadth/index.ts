@@ -8,6 +8,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -411,7 +412,7 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    const errMsg = redact(err);
     await finishJob("error", null, errMsg);
     return new Response(
       JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }),

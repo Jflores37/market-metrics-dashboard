@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -21,7 +22,7 @@ async function fetchSeries(seriesId: string, apiKey: string, since: string) {
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`FRED ${res.status} for ${seriesId}: ${text.slice(0, 200)}`);
+    throw new Error(redact(`FRED ${res.status} for ${seriesId}: ${text.slice(0, 200)}`, apiKey));
   }
   const json = await res.json();
   return (json.observations ?? []) as Array<{ date: string; value: string }>;
@@ -64,7 +65,7 @@ Deno.serve(async (_req: Request) => {
         }
         results[s.series_id] = rows.length;
       } catch (err) {
-        errors[s.series_id] = String(err);
+        errors[s.series_id] = redact(err, apiKey);
       }
     }
 
@@ -79,7 +80,7 @@ Deno.serve(async (_req: Request) => {
     );
   } catch (err) {
     return new Response(
-      JSON.stringify({ ok: false, error: String(err), elapsed_ms: Date.now() - started }),
+      JSON.stringify({ ok: false, error: redact(err), elapsed_ms: Date.now() - started }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

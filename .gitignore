@@ -7,3 +7,11 @@ dist
 *.log
 .vercel
 supabase/.temp
+
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.secrets/
+supabase/.branches

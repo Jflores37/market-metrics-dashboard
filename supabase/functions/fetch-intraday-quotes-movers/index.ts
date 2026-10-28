@@ -8,6 +8,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -135,7 +136,7 @@ Deno.serve(async (_req: Request) => {
     const quoteResults = await Promise.all(QUOTE_SYMBOLS.map(async (q) => ({ q, data: await fetchYahooQuote(q.symbol) })));
     const moverResults = await Promise.all(screens.map(async (m) => {
       try { return { type: m.type, rows: await fetchFinvizMovers(m.filter, m.sort, auth), error: null as string | null }; }
-      catch (e) { return { type: m.type, rows: [] as Array<Record<string, unknown>>, error: String(e instanceof Error ? e.message : e) }; }
+      catch (e) { return { type: m.type, rows: [] as Array<Record<string, unknown>>, error: redact(e, auth) }; }
     }));
 
     const quoteRows: Array<Record<string, unknown>> = [];
@@ -166,7 +167,7 @@ Deno.serve(async (_req: Request) => {
     await finishJob("ok", summary);
     return new Response(JSON.stringify({ ok: true, ...summary }), { headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    const errMsg = redact(err);
     await finishJob("error", null, errMsg);
     return new Response(JSON.stringify({ ok: false, error: errMsg, elapsed_ms: Date.now() - started }), { status: 500, headers: { "Content-Type": "application/json" } });
   }

@@ -13,6 +13,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { redact } from "../_shared/redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -378,7 +379,7 @@ Deno.serve(async (req: Request) => {
         const { fetched, inserted } = await RUNNERS[ids[i]](auth, snap);
         summary[ids[i]] = { fetched, inserted, elapsed_ms: Date.now() - t0 };
       } catch (err) {
-        summary[ids[i]] = { fetched: 0, inserted: 0, elapsed_ms: Date.now() - t0, error: String(err instanceof Error ? err.message : err) };
+        summary[ids[i]] = { fetched: 0, inserted: 0, elapsed_ms: Date.now() - t0, error: redact(err, auth) };
       }
     }
 
@@ -398,7 +399,7 @@ Deno.serve(async (req: Request) => {
           await supabase.from("earnings_calendar").delete().gte("earnings_date", today).lt("fetched_at", runStamp);
         }
         earningsSummary = { fetched: e.raw, inserted: e.rows.length };
-      } catch (err) { earningsSummary = { error: String(err instanceof Error ? err.message : err) }; }
+      } catch (err) { earningsSummary = { error: redact(err, auth) }; }
     }
 
     const failed = Object.values(summary).filter((s) => s.error).length;
@@ -409,7 +410,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ ok: failed === 0, elapsed_ms: Date.now() - started, ...full }),
       { headers: { "Content-Type": "application/json" } });
   } catch (err) {
-    const m = err instanceof Error ? err.message : String(err);
+    const m = redact(err);
     await finishJob("error", null, m);
     return new Response(JSON.stringify({ ok: false, error: m, elapsed_ms: Date.now() - started }),
       { status: 500, headers: { "Content-Type": "application/json" } });
